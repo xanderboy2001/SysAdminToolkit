@@ -29,8 +29,8 @@
     PrivateData       = @{
         PSData = @{
             Tags         = @('SysAdmin', 'Toolkit', 'Menu')
-            LicenseUri   = ''
-            ProjectUri   = ''
+            LicenseUri   = 'https://github.com/xanderboy2001/SysAdminToolkit/blob/main/LICENSE.md'
+            ProjectUri   = 'https://github.com/xanderboy2001/sysadmintoolkit'
             ReleaseNotes = 'Initial version.'
         }
     }
