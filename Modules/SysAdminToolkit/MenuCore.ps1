@@ -233,3 +233,16 @@ function Show-Menu {
 
     return Read-MenuSelection -Options $Options -QuitOptions $QuitOptions -BackOptions $BackOptions
 }
+
+function Confirm-UserChoice {
+    param(
+        [String]$Action
+    )
+    $Prompt = "Are you sure you want to ${Action}? Enter 'y' or 'yes' to continue"
+    $resp = Read-Host -Prompt $Prompt
+    while ($resp -notmatch '^(y|yes|n|no)$') {
+        Write-Host "Invalid input. Please enter 'y', 'yes', 'n', or 'no'." -ForegroundColor Yellow
+        $resp = Read-Host -Prompt $Prompt
+    }
+    return ($resp -match '^(y|yes)$')
+}
