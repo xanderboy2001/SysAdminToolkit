@@ -28,6 +28,9 @@ function Show-ADMenu {
     Author: Alexander Christian
     #>
 
+    # Import all scripts in ActiveDirectory/Scripts folder
+    Get-ChildItem -Path (Join-Path $PSScriptRoot 'Scripts') -Filter '*.ps1' | ForEach-Object { . $_.FullName }
+
     $menuOptions = @(
         'Reset Password'
         'Unlock Account'
@@ -42,7 +45,7 @@ function Show-ADMenu {
 
     switch ($result.Index) {
         0 { Write-Host 'Reset Password (placeholder)' -ForegroundColor Cyan }
-        1 { Write-Host 'Unlock Account (placeholder)' -ForegroundColor Cyan }
+        1 { Invoke-ADAccountUnlock }
         2 { Write-Host 'Disable User (placeholder)' -ForegroundColor Cyan }
         3 { Write-Host 'Create-User (placeholder)' -ForegroundColor Cyan }
     }
