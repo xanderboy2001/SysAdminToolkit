@@ -134,7 +134,7 @@ Contributions are welcome! Here’s how you can help:
 
 ## License
 
-Distributed under the **[GNU General Public License v3.0]**. See `LICENSE` for more information.
+Distributed under the **[GNU General Public License v3.0]**. See [LICENSE.md](LICENSE.md) for more information.
 
 ---
 
