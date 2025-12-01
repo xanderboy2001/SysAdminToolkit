@@ -28,9 +28,6 @@ function Show-ADMenu {
     Author: Alexander Christian
     #>
 
-    # Import all scripts in ActiveDirectory/Scripts folder
-    Get-ChildItem -Path (Join-Path $PSScriptRoot 'Scripts') -Filter '*.ps1' | ForEach-Object { . $_.FullName }
-
     $menuOptions = @(
         'Reset Password'
         'Unlock Account'

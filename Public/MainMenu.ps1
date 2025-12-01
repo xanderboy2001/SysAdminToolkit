@@ -3,7 +3,7 @@
 Main menu functions for the SysAdmin Toolkit.
 
 .DESCRIPTION
-Contains the Show-MainMenu function, which displays the main menu
+Contains the Start-ToolkitMenu function, which displays the main menu
 and routes users to either the Server or Client menus.
 Handles user input for quitting or navigating submenus.
 
@@ -11,7 +11,7 @@ Handles user input for quitting or navigating submenus.
 Author: Alexander Christian
 #>
 
-function Show-MainMenu {
+function Start-ToolkitMenu {
     <#
     .SYNOPSIS
     Displays the main menu for the SysAdmin Toolkit.
@@ -22,15 +22,15 @@ function Show-MainMenu {
     or exits the toolkit if a quit command is entered.
 
     .EXAMPLE
-    Show-MainMenu
+    Start-ToolkitMenu
     # Displays the main menu and waits for the user to select Server or Client.
 
     .NOTES
     Author: Alexander Christian
     #>
-    $menuOptions = @('Server', 'Client')
 
-    # Write-Host '=== SysAdmin Toolkit ===' -ForegroundColor Cyan
+
+    $menuOptions = @('Server', 'Client')
 
     do {
         $result = Show-Menu -Title 'SysAdmin Toolkit' -Options $menuOptions -BackOptions @()
