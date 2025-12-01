@@ -1,4 +1,22 @@
 function Invoke-ADAccountUnlock {
+    <#
+    .SYNOPSIS
+    Prompts for an Active Directory username and unlocks the account if it is locked.
+
+    .DESCRIPTION
+    This function guides the user through unlocking a locked Active Directory account.
+    It prompts for a valid AD username, checks whether the account is locked, and if so,
+    requests confirmation before performing the unlock. The function provides guidance
+    to verify the user's identity prior to unlocking.
+
+    .EXAMPLE
+    Invoke-ADAccountUnlock
+    # Prompts for an AD username, checks the account's lock status, and unlocks it if confirmed.
+
+    .NOTES
+    Author: Alexander Christian
+    #>
+
     Show-MenuHeader -Title 'Unlock Active Directory Account'
     Write-Host @'
 This script takes an Active Directory account username as input and checks if it is locked.
