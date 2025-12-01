@@ -54,36 +54,64 @@ Make sure you have:
    ```bash
    git clone https://github.com/xanderboy2001/SysAdminToolkit.git
    ```
-2. Navigate into the folder:
-   ```powershell
-   cd SysAdminToolkit
+2. Ensure the folder structure remains:
    ```
-3. To run the toolkit, execute:
+   SysAdminToolkit/
+      SysAdminToolkit.psd1
+      SysAdminToolkit.psm1
+      Public/
+         ... (menu and command scripts)
+      Private/
+         ... (helper scripts, utils)
+   ```
+3. (Recommended) Copy the folder into your personal PowerShell modules directory:
    ```powershell
-   .\Toolkit.ps1
+   $dest = Join-Path $HOME 'Documents/PowerShell/Modules/SysAdminToolkit'
+   Copy-Item -Recurse -Path 'C:/path/to/downloaded/SysAdminToolkit' -Destination $dest
+   ```
+4. Import the module in PowerShell:
+   ```powershell
+   Import-Module SysAdminToolkit -Force
+   ```
+
+   Or if not in a standard module path (you didn't follow step 3):
+
+   ```powershell
+   Import-Module 'C:/full/path/to/SysAdminToolkit' -Force
+   ```
+5. Launch the toolkit menu:
+   ```powershell
+   Start-ToolkitMenu
    ```
 
 ---
 
 ## Usage
 
-Once you run `Toolkit.ps1`, you'll see a menu like:
+When you run `Start-ToolkitMenu`, you will see a top-level menu. Options include:
 
-```
-=== SysAdmin Toolkit ===
-1. Server
-2. Client
-```
+- **Server** - Opens the server tools menu:
+   - **Active Directory** - Tools for password reset, account unlock, disable user, create user
+   - (Other submodules planned, e.g. Microsoft Graph, Troubleshooting)
+- **Client** - Reserved for future client‑side utilities (e.g. local user management, workstation scripts)
 
-- Select **Server** to access submenus like Active Directory.
-- Within the **Active Directory** menu, you’ll find options: *Reset Password*, *Unlock Account*, *Disable User*, *Create User*. Each option currently runs a placeholder or script.
-- Use the **Quit** or **Back** commands (e.g. `Q`, `Exit`, `B`) when prompted to navigate or exit.
+Select menu options using the number keys (e.g. `1` for Server), or use `Q`, `Quit`, `E`, `Exit`, `C`, `Cancel` to exit. Use `B`, `Back` when prompted to return to the previous menu.
+
+---
+
+## Example
+
+```powershell
+Import-Module SysAdminToolkit -Force
+Start-ToolkitMenu
+# ... choose 1 (Server), then 1 (Active Directory), then 2 (Unlock Account)
+```
 
 ---
 
 ## Roadmap
 
-- [ ] Implement real scripts under `Modules/SysAdminToolkit/Server/ActiveDirectory/Scripts`
+- [ ] Implement real scripts under `Public/Server/ActiveDirectory`
 - [ ] Add Microsoft Graph menu functionality
 - [ ] Implement a “Troubleshooting” submenu under Server
 - [ ] Add more client-side tools and menu options
