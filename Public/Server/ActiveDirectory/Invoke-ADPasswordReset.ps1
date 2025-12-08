@@ -12,8 +12,14 @@ The password will be read as a SecureString
     Write-Host "Ensure you verify the user's identity via security questions or manager approval." -ForegroundColor Yellow
     $action = "Reset password for $username"
     if (Confirm-UserChoice -Action $action) {
-        $prompt = 'New password'
-        Set-ADAccountPassword -Identity $username -Reset -NewPassword (Read-Host -Prompt $prompt -AsSecureString)
-        Write-Host "$username"
+        try {
+            $newPassword = Read-Host -Prompt 'New Password' -AsSecureString
+            Set-ADAccountPassword -Identity $username -Reset -NewPassword $newPassword -ErrorAction Stop
+            Unlock-ADAccount -Identity $username -ErrorAction SilentlyContinue
+            Write-Host "Password successfully reset for $username" -ForegroundColor Green
+        }
+        catch {
+            Write-Host "Failed to reset password: $($_.Exception.Message)" -ForegroundColor Red
+        }
     }
 }
