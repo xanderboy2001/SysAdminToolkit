@@ -20,7 +20,7 @@ function Read-Username {
             return $username
         }
 
-        Write-Host "Invalid input must be in either format: 'first.last', 'first last'" -ForegroundColor Red
+        Write-Host "Invalid input must be in either format: '<first name>.<last name>', '<first name> <last name>', or <first name><last initial>" -ForegroundColor Red
     }
 }
 
