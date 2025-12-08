@@ -16,7 +16,7 @@ function Read-Username {
         $usernameInput = Read-Host -Prompt 'Enter the username of the user whose Active Directory account you wish to unlock'
         $username = Convert-UsernameFormat -Username $usernameInput
 
-        if ($username -match '^[a-z]+\.[a-z]+$' -or $username -match '^[a-z]+ [a-z]+$') {
+        if ($username -match '^[a-z]+\.[a-z]+$' -or $username -match '^[a-z]+ [a-z]+$' -or $username -match '^[a-z]+$') {
             return $username
         }
 
@@ -28,7 +28,7 @@ function Get-ValidADUser {
     while ($true) {
         $username = Read-Username
 
-        if ($username -match '^[a-z]+\.[a-z]+$') {
+        if ($username -match '^[a-z]+\.[a-z]+$' -or $username -match '^[a-z]+$') {
             try {
                 $userAccount = Get-ADUser -Identity $username -ErrorAction Stop
                 return $userAccount
