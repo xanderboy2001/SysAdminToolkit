@@ -43,7 +43,7 @@ function Show-ADMenu {
     switch ($result.Index) {
         0 { Invoke-ADPasswordReset }
         1 { Invoke-ADAccountUnlock }
-        2 { Write-Host 'Disable User (placeholder)' -ForegroundColor Cyan }
+        2 { Invoke-ADAccountDisable }
         3 { Write-Host 'Create-User (placeholder)' -ForegroundColor Cyan }
     }
 }
