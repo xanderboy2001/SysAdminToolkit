@@ -41,7 +41,7 @@ function Show-ADMenu {
     if ($result.Back) { Show-ServerMenu }
 
     switch ($result.Index) {
-        0 { Write-Host 'Reset Password (placeholder)' -ForegroundColor Cyan }
+        0 { Invoke-ADPasswordReset }
         1 { Invoke-ADAccountUnlock }
         2 { Write-Host 'Disable User (placeholder)' -ForegroundColor Cyan }
         3 { Write-Host 'Create-User (placeholder)' -ForegroundColor Cyan }
