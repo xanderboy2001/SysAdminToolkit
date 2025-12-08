@@ -22,7 +22,7 @@
     DotNetFrameworkVersion = '4.0'
 
     # Dependencies (if needed later)
-    RequiredModules        = @()
+    RequiredModules        = @('ActiveDirectory')
 
     # File listings (optional)
     FileList               = @(
