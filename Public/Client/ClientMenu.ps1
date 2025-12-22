@@ -27,5 +27,15 @@ function Show-ClientMenu {
     Author: Alexander Christian
     #>
 
-    Write-Host 'You have chosen client' -ForegroundColor Cyan
+    $menuOptions = @(
+        'Get shutdown/reboot logs'
+    )
+    $result = Show-Menu -Title 'Client Menu' -Options $menuOptions
+
+    if ($result.Quit) { return }
+    if ($result.Back) { Start-ToolkitMenu }
+
+    switch ($result.Index) {
+        0 { Get-ShutdownEvents }
+    }
 }
