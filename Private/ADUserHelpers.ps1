@@ -13,7 +13,7 @@ function Convert-UsernameFormat {
 
 function Read-Username {
     while ($true) {
-        $usernameInput = Read-Host -Prompt 'Enter the username of the user whose Active Directory account you wish to unlock'
+        $usernameInput = Read-Host -Prompt 'Enter the username of the user'
         $username = Convert-UsernameFormat -Username $usernameInput
 
         if ($username -match '^[a-z]+\.[a-z]+$' -or $username -match '^[a-z]+ [a-z]+$' -or $username -match '^[a-z]+$') {
