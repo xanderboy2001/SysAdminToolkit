@@ -13,7 +13,7 @@ The password will be read as a SecureString
     $action = "Reset password for $username"
     if (Confirm-UserChoice -Action $action) {
         try {
-            $newPassword = Read-Host -Prompt 'New Password' -AsSecureString
+            $newPassword = (Read-Password)
             Set-ADAccountPassword -Identity $username -Reset -NewPassword $newPassword -ErrorAction Stop
             Unlock-ADAccount -Identity $username -ErrorAction SilentlyContinue
             Write-Host "Password successfully reset for $username" -ForegroundColor Green
