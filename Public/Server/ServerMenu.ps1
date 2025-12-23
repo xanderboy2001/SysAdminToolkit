@@ -29,7 +29,7 @@ function Show-ServerMenu {
 
     $menuOptions = @(
         'Active Directory'
-        'Microsoft Graph'
+        'Remote Desktop'
         'Troubleshooting'
     )
     $result = Show-Menu -Title 'Server Menu' -Options $menuOptions
@@ -39,7 +39,7 @@ function Show-ServerMenu {
 
     switch ($result.Index) {
         0 { Show-ADMenu }
-        1 { Write-Host 'Microsoft Graph menu not yet implemented' -ForegroundColor Cyan }
+        1 { Show-RDMenu }
         2 { Write-Host 'Troubleshooting menu not yet implemented' -ForegroundColor Cyan }
     }
 }
