@@ -32,7 +32,7 @@ function Show-ADMenu {
         'Reset Password'
         'Unlock Account'
         'Disable User'
-        'Create User'
+        'Start AD Sync'
     )
 
     $result = Show-Menu -Title 'Active Directory Menu' -Options $menuOptions
@@ -44,6 +44,6 @@ function Show-ADMenu {
         0 { Invoke-ADPasswordReset }
         1 { Invoke-ADAccountUnlock }
         2 { Invoke-ADAccountDisable }
-        3 { Write-Host 'Create-User (placeholder)' -ForegroundColor Cyan }
+        3 { Invoke-ADSync }
     }
 }
