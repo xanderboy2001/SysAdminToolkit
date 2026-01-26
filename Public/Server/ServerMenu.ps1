@@ -4,7 +4,7 @@ Server menu functions for the SysAdmin Toolkit.
 
 .DESCRIPTION
 Contains the Show-ServerMenu function, which displays server-related options
-such as Active Directory, Microsoft Graph, and Troubleshooting.
+such as Active Directory, and Troubleshooting.
 Handles user input and navigates to submenus or returns to the main menu.
 
 .NOTES
@@ -16,7 +16,7 @@ function Show-ServerMenu {
     Displays the Server menu in the SysAdmin Toolkit.
 
     .DESCRIPTION
-    Shows the server-specific menu with options for Active Directory, Microsoft Graph, and Troubleshooting.
+    Shows the server-specific menu with options for Active Directory, and Troubleshooting.
     Handles user input and navigates to the appropriate submenu or returns to the main menu if requested.
 
     .EXAMPLE
