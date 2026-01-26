@@ -25,7 +25,7 @@
 
 ## About The Project
 
-The **SysAdmin Toolkit** is a PowerShell-based module meant to streamline administrative tasks by offering a menu-driven interface. It contains utilities for both *server* and *client* operations, with menus for Active Directory, Microsoft Graph, and future extensions. The goal is to provide a clean, navigable toolkit for sysadmins to run scripts without memorizing commands.
+The **SysAdmin Toolkit** is a PowerShell-based module meant to streamline administrative tasks by offering a menu-driven interface. It contains utilities for both *server* and *client* operations, with menus for Active Directory, and future extensions. The goal is to provide a clean, navigable toolkit for sysadmins to run scripts without memorizing commands.
 
 ---
 
@@ -92,7 +92,7 @@ When you run `Start-ToolkitMenu`, you will see a top-level menu. Options include
 
 - **Server** - Opens the server tools menu:
    - **Active Directory** - Tools for password reset, account unlock, disable user, create user
-   - (Other submodules planned, e.g. Microsoft Graph, Troubleshooting)
+   - (Other submodules planned, e.g. Troubleshooting)
 - **Client** - Reserved for future client‑side utilities (e.g. local user management, workstation scripts)
 
 Select menu options using the number keys (e.g. `1` for Server), or use `Q`, `Quit`, `E`, `Exit`, `C`, `Cancel` to exit. Use `B`, `Back` when prompted to return to the previous menu.
@@ -112,7 +112,6 @@ Start-ToolkitMenu
 ## Roadmap
 
 - [ ] Implement real scripts under `Public/Server/ActiveDirectory`
-- [ ] Add Microsoft Graph menu functionality
 - [ ] Implement a “Troubleshooting” submenu under Server
 - [ ] Add more client-side tools and menu options
 - [ ] Improve error-handling and validation
