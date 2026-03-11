@@ -28,7 +28,7 @@ function Show-ClientMenu {
     #>
 
     $menuOptions = @(
-        'Get shutdown/reboot logs'
+        'Unlock a file being held by a process'
     )
     $result = Show-Menu -Title 'Client Menu' -Options $menuOptions
 
@@ -36,6 +36,6 @@ function Show-ClientMenu {
     if ($result.Back) { Start-ToolkitMenu }
 
     switch ($result.Index) {
-        0 { Get-ShutdownEvents }
+        0 { Stop-FileLock }
     }
 }
