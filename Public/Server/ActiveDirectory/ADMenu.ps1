@@ -37,13 +37,25 @@ function Show-ADMenu {
 
     $result = Show-Menu -Title 'Active Directory Menu' -Options $menuOptions
 
-    if ($result.Quit) { return }
-    if ($result.Back) { Show-ServerMenu }
+    if ($result.Quit) {
+        return 
+    }
+    if ($result.Back) {
+        Show-ServerMenu 
+    }
 
     switch ($result.Index) {
-        0 { Invoke-ADPasswordReset }
-        1 { Invoke-ADAccountUnlock }
-        2 { Invoke-ADAccountDisable }
-        3 { Invoke-ADSync }
+        0 {
+            Invoke-ADPasswordReset 
+        }
+        1 {
+            Invoke-ADAccountUnlock 
+        }
+        2 {
+            Invoke-ADAccountDisable 
+        }
+        3 {
+            Invoke-ADSync 
+        }
     }
 }

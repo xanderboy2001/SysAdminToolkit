@@ -34,12 +34,22 @@ function Show-ServerMenu {
     )
     $result = Show-Menu -Title 'Server Menu' -Options $menuOptions
 
-    if ($result.Quit) { return }
-    if ($result.Back) { Start-ToolkitMenu }
+    if ($result.Quit) {
+        return 
+    }
+    if ($result.Back) {
+        Start-ToolkitMenu 
+    }
 
     switch ($result.Index) {
-        0 { Show-ADMenu }
-        1 { Show-RDMenu }
-        2 { Write-Host 'Troubleshooting menu not yet implemented' -ForegroundColor Cyan }
+        0 {
+            Show-ADMenu 
+        }
+        1 {
+            Show-RDMenu 
+        }
+        2 {
+            Write-Host 'Troubleshooting menu not yet implemented' -ForegroundColor Cyan 
+        }
     }
 }

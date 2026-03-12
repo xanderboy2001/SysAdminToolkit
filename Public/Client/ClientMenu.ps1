@@ -32,10 +32,16 @@ function Show-ClientMenu {
     )
     $result = Show-Menu -Title 'Client Menu' -Options $menuOptions
 
-    if ($result.Quit) { return }
-    if ($result.Back) { Start-ToolkitMenu }
+    if ($result.Quit) {
+        return 
+    }
+    if ($result.Back) {
+        Start-ToolkitMenu 
+    }
 
     switch ($result.Index) {
-        0 { Stop-FileLock }
+        0 {
+            Stop-FileLock 
+        }
     }
 }
