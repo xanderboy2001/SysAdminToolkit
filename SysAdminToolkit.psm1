@@ -20,7 +20,7 @@ Start-ToolkitMenu
 Author: Alexander Christian
 Module: SysAdminToolkit
 #>
-
+#Requires -RunAsAdministrator
 
 # Load private scripts (helpers)
 $PrivatePath = Join-Path $PSScriptRoot 'Private'

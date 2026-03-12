@@ -40,8 +40,12 @@ function Start-ToolkitMenu {
         }
 
         switch ($result.Index) {
-            0 { Show-ServerMenu; return }
-            1 { Show-ClientMenu; return }
+            0 {
+                Show-ServerMenu; return 
+            }
+            1 {
+                Show-ClientMenu; return 
+            }
         }
     } while ($true)
 }
