@@ -49,8 +49,17 @@ function Set-RDSessionHostMode {
         [string]$ConnectionBroker
     )
 
-    $ConnectionBrokerFQDN = [System.Net.Dns]::GetHostByName($ConnectionBroker).HostName
-    Write-Host "Resolved '$ConnectionBroker' to '$ConnectionBrokerFQDN'" -ForegroundColor DarkGray
+    if (-not $ConnectionBroker) {
+        $ConnectionBroker = Read-Host "Enter the name of one of the connection brokers"
+    }
+    
+    try {
+        $ConnectionBrokerFQDN = [System.Net.Dns]::GetHostByName($ConnectionBroker).HostName
+        Write-Host "Resolved '$ConnectionBroker' to '$ConnectionBrokerFQDN'" -ForegroundColor DarkGray
+    }
+    catch {
+        throw "Could not resolve $ConnectionBroker"
+    }
     Write-Host "Testing connection to $ConnectionBrokerFQDN..." -ForegroundColor Cyan
     if (-not (Test-Connection -TargetName $ConnectionBrokerFQDN -Count 1 -Quiet)) {
         throw "Could not connect to $ConnectionBrokerFQDN"
