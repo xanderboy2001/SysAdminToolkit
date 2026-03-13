@@ -1,7 +1,7 @@
 function Show-RDMenu {
     $menuOptions = @(
-        'Disable Connections'
-        'List Active Users'
+        'Reboot Connection Brokers',
+        'Toggle New Connections on Server'
     )
 
     $result = Show-Menu -Title 'Remote Desktop Menu' -Options $menuOptions
@@ -15,10 +15,10 @@ function Show-RDMenu {
 
     switch ($result.Index) {
         0 {
-            <#disable connections#> 
+            Restart-RDS-Brokers
         }
         1 {
-            <#list active users#> 
+            Set-RDSessionHostMode
         }
     }
 }
