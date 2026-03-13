@@ -1,11 +1,10 @@
 
 function Invoke-ADSync {
-    [CmdletBinding()]
-    param(
-        [string]$ADConnectServer
-    )
+
     Show-MenuHeader -Title 'Run AD Delta Sync'
     Write-Host 'This script triggers an Active Directory Delta sync.' -ForegroundColor Yellow
+
+    $adConnectServer = (Get-ToolkitConfig).ADConnectServer
 
     if (-not $ADConnectServer) {
         $ADConnectServer = Read-Host "Enter the name of the AD Connect Server"
@@ -18,7 +17,7 @@ function Invoke-ADSync {
     }
     Write-Host "Connection to $ADConnectServerResolved verified." -ForegroundColor Green
 
-    try{
+    try {
         Write-Host "Beginning delta sync on $ADConnectServerResolved..." -ForegroundColor Cyan
         Invoke-Command -ComputerName $ADConnectServerResolved -ScriptBlock {
             Import-Module ADSync
@@ -36,7 +35,8 @@ function Invoke-ADSync {
             } while ((Get-ADSyncConnectorRunStatus).RunState -eq 'Busy')
             Write-Host "`nAD Sync complete" -ForegroundColor Green
         } | Out-Null
-    } catch {
+    }
+    catch {
         Write-Host "Fatal error during AD Delta Sync: $($_.Exception.Message)" -ForegroundColor Red
         exit 1
     }

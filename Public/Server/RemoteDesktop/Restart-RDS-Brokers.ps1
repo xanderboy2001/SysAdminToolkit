@@ -317,14 +317,26 @@ function Restart-RDS-Brokers {
     [CmdletBinding()]
     param(
         [string]$BrokerServer,
-        [int]$TimeoutSecs = 600,    # 10 minutes
-        [int]$MaxRetries = 15
+        [int]$TimeoutSecs,
+        [int]$MaxRetries
     )
 
     begin {
+        $config = Get-ToolkitConfig
+        if ($TimeoutSecs -eq 0) {
+            $TimeoutSecs = $config.RDTimeoutSecs 
+        }
+        if ($MaxRetries -eq 0) {
+            $MaxRetries = $config.RDMaxRetries 
+        }
         if (-not $BrokerServer) {
-            $BrokerServer = Read-Host "Enter the name of one of the Remote Desktop Connection Broker Servers" + `
-                " (e.g. 'broker1')"
+            if ($config.RDBrokerServer = '') { 
+                $BrokerServer = Read-Host "Enter the name of one of the Remote Desktop Connection Broker Servers" + `
+                    " (e.g. 'broker1')"
+            }
+            else {
+                $BrokerServer = $config.RDBrokerServer
+            }
         }
         $BrokerServerFQDN = [System.Net.Dns]::GetHostByName($BrokerServer).HostName.ToUpper()
         Write-Host "Testing connection to $BrokerServerFQDN..." -ForegroundColor Cyan

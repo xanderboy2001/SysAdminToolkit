@@ -3,20 +3,22 @@ function Get-BlockingProcesses {
     param(
         [Parameter(Mandatory)]
         [string]$FileName,
+        [Parameter(Mandatory)]
+        [string]$HandleExePath,
         [string]$ComputerName
     )
 
     $ProcessFinderCommand = {
-        param($n)
-        \\live.sysinternals.com\tools\handle.exe -accepteula -nobanner -v "$n"
+        param($n, $h)
+        & $h -accepteula -nobanner -v "$n"
     }
 
     if ($ComputerName) {
         $job = Invoke-Command -ComputerName $ComputerName `
-            -ScriptBlock $ProcessFinderCommand -ArgumentList $FileName -AsJob
+            -ScriptBlock $ProcessFinderCommand -ArgumentList $FileName, $HandleExePath -AsJob
     }
     else {
-        $job = Start-Job -ScriptBlock $ProcessFinderCommand -ArgumentList $FileName
+        $job = Start-Job -ScriptBlock $ProcessFinderCommand -ArgumentList $FileName, $HandleExePath
     }
 
     $i = 0
@@ -41,9 +43,8 @@ function Stop-FileLock {
     )
 
     begin {
-        if (-not (Test-Path -Path \\live.sysinternals.com\tools\handle.exe)) {
-            throw "Could not reach Sysinternals live share"
-        }
+        $sysinternalsPath = (Get-ToolkitConfig).SysinternalsPath
+        $handleExe = Join-Path $sysinternalsPath "handle.exe"
 
         $FileName = Read-Host "Enter the name of the file being held by a process"
         $ComputerName = Read-Host "Enter the name of the computer to work with (leave blank for local machine)"
@@ -55,10 +56,11 @@ function Stop-FileLock {
 
     process {
         if ($ComputerName) {
-            $processes = Get-BlockingProcesses -ComputerName $ComputerName -FileName $FileName
+            $processes = Get-BlockingProcesses -ComputerName $ComputerName `
+                -FileName $FileName -HandleExePath $handleExe
         }
         else {
-            $processes = Get-BlockingProcesses -FileName $FileName
+            $processes = Get-BlockingProcesses -FileName $FileName -HandleExePath $handleExe
         }
 
         if ($processes) {
