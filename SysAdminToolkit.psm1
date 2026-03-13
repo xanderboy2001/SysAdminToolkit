@@ -22,6 +22,8 @@ Module: SysAdminToolkit
 #>
 #Requires -RunAsAdministrator
 
+$script:ModuleRoot = $PSScriptRoot
+
 # Load private scripts (helpers)
 $PrivatePath = Join-Path $PSScriptRoot 'Private'
 if (Test-Path $PrivatePath) {
@@ -37,6 +39,8 @@ if (Test-Path $PublicPath) {
         . $_.FullName
     }
 }
+
+Initialize-ToolkitConfig
 
 # Export all public functions
 Export-ModuleMember -Function @(

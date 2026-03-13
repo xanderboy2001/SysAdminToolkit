@@ -13,12 +13,14 @@ function Show-RDMenu {
         Show-ServerMenu 
     }
 
+    $brokerServer = (Get-ToolkitConfig).RDBrokerServer
+
     switch ($result.Index) {
         0 {
-            Restart-RDS-Brokers
+            Restart-RDS-Brokers -BrokerServer $brokerServer 
         }
         1 {
-            Set-RDSessionHostMode
+            Set-RDSessionHostMode -ConnectionBroker $brokerServer 
         }
     }
 }

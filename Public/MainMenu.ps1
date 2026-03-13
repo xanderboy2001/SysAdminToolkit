@@ -30,7 +30,7 @@ function Start-ToolkitMenu {
     #>
 
 
-    $menuOptions = @('Server', 'Client')
+    $menuOptions = @('Server', 'Client', 'Config')
 
     do {
         $result = Show-Menu -Title 'SysAdmin Toolkit' -Options $menuOptions -BackOptions @()
@@ -45,6 +45,9 @@ function Start-ToolkitMenu {
             }
             1 {
                 Show-ClientMenu; return 
+            }
+            2 {
+                Show-ConfigMenu; return 
             }
         }
     } while ($true)
