@@ -9,6 +9,7 @@ Contains utility functions to display menus and read user input, including:
 - Show-MenuInstructions
 - Read-MenuSelection
 - Show-Menu
+- Confirm-UserChoice
 
 These functions handle menu formatting, option alignment, input prompts,
 and return a hashtable describing the user’s selection.
@@ -129,7 +130,8 @@ function Show-MenuInstructions {
     }
 
     if ($BackOptions) {
-        Write-Host "You may also enter $($BackOptions -join ', ') to return to the main menu." -ForegroundColor Yellow
+        Write-Host "You may also enter $($BackOptions -join ', ') to return to the main menu." `
+            -ForegroundColor Yellow
     }
 }
 
@@ -151,6 +153,9 @@ function Read-MenuSelection {
 
     .PARAMETER BackOptions
     Array of strings representing input commands that return to the previous menu.
+
+    .OUTPUTS
+    An object containing boolean properties called 'Back' and 'Quit' indicating which option the user selected.
 
     .EXAMPLE
     $result = Read-MenuSelection -Options @('Option1','Option2') -QuitOptions @('Q') -BackOptions @('B')
@@ -235,6 +240,30 @@ function Show-Menu {
 }
 
 function Confirm-UserChoice {
+    <#
+    .SYNOPSIS
+    Prompts the user to confirm a potentially descructive or significant action.
+
+    .DESCRIPTION
+    Displays a confirmation prompt describing the action about to be taken and requires the user to enter
+    'y', 'yes', 'n', or 'no'. Invalid input causes the prompt to repeat. Returns $true if the user confirms,
+    $false otherwise.
+
+    .PARAMETER Action
+    A string describing the action to confirm, enbedded in the prompt message.
+
+    .EXAMPLE
+    if (Confirm-UserChoice -Action 'disable the account for jdoe') {
+        Disable-ADAccount -Identity 'jdoe'
+    }
+    # Asks the user to confirm before disabling the account.
+
+    .OUTPUTS
+    System.Boolean. Returns $true if the user entered 'y' or 'yes'; $false for 'n' or 'no.
+
+    .NOTES
+    Author: Alexander Christian
+    #>
     param(
         [String]$Action
     )

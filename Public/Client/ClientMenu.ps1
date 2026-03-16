@@ -1,32 +1,19 @@
-<#
-.SYNOPSIS
-Client menu functions for the SysAdmin Toolkit.
-
-.DESCRIPTION
-Contains the Show-ClientMenu function, which displays a placeholder message
-indicating the Client menu was selected. Intended as a placeholder for
-future client-related functionality.
-
-.NOTES
-Author: Alexander Christian
-#>
 function Show-ClientMenu {
     <#
     .SYNOPSIS
     Displays the Client menu in the SysAdmin Toolkit.
 
     .DESCRIPTION
-    Outputs a message indicating that the Client menu has been selected.
-    This is a placeholder for future client-related menu options.
+    Shows client-related options such as unlcoking a file held open by a process.
+    Handles user input and navigates to the appropriate function or returns to the main menu if requested.
 
     .EXAMPLE
     Show-ClientMenu
-    # Displays the message: "You have chosen client"
+    # Displays the Client menu and waits for the user to select an option.
 
     .NOTES
     Author: Alexander Christian
     #>
-
     $menuOptions = @(
         'Unlock a file being held by a process'
     )

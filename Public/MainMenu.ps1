@@ -1,35 +1,19 @@
-<#
-.SYNOPSIS
-Main menu functions for the SysAdmin Toolkit.
-
-.DESCRIPTION
-Contains the Start-ToolkitMenu function, which displays the main menu
-and routes users to either the Server or Client menus.
-Handles user input for quitting or navigating submenus.
-
-.NOTES
-Author: Alexander Christian
-#>
-
 function Start-ToolkitMenu {
     <#
     .SYNOPSIS
     Displays the main menu for the SysAdmin Toolkit.
 
     .DESCRIPTION
-    Shows the main menu with options for Server and Client menus.
-    Handles user input and navigates to the appropriate submenu
-    or exits the toolkit if a quit command is entered.
+    Shows the main menu with options for Server, Client, and Config menus.
+    Handles user input and navigates to the appropriate submenu or exits the toolkit if a quit command is entered.
 
     .EXAMPLE
     Start-ToolkitMenu
-    # Displays the main menu and waits for the user to select Server or Client.
+    # Displays the main menu and waits for the user to select an option.
 
     .NOTES
     Author: Alexander Christian
     #>
-
-
     $menuOptions = @('Server', 'Client', 'Config')
 
     do {

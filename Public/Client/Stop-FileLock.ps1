@@ -1,4 +1,39 @@
 function Get-BlockingProcesses {
+    <#
+    .SYNOPSIS
+    Returns a list of processes currently holding a lock on the specified file.
+
+    .DESCRIPTION
+    Uses Sysinternals Handle.exe to identify processes that have an open handle to the specified file.
+    The search is run as a background job, either locally or on a remote computer via Invoke-Command.
+    A progress indicator is displayed while the job runs. Results are returned as a collection of parsed objects
+    from Handle.exe CSV output.
+
+    .PARAMETER FileName
+    The name or path of the file to check for blocking processes.
+
+    .PARAMETER HandleExePath
+    The full path to the Handle.exe Sysinternals utility.
+
+    .PARAMETER ComputerName
+    Optional. The name of the remote computer to run the check on.
+    If omitted, the check runs on the local machine.
+    .EXAMPLE
+    Get-BlockingProcess -FileName 'report.xlsx' -HandleExePath '\\live.sysinternals.com\tools\handle.exe'
+    # Finds processes on the local machine blocking report.xlsx.
+
+    .EXAMPLE
+    Get-BlockingProcess -FileName 'data.csv' -HandleExePath 'C:\tools\handle.exe' -ComputerName 'WORKSTATION1'
+    # Finds processes on WORKSTATION1 blocking data.csv.
+
+    .OUTPUTS
+    System.Object[]. A collection of parsed objects representing blocking processes, each with properties such
+    as Process and PID.
+
+    .NOTES
+    Author: Alexander Christian
+    Requires Sysinternals Handle.exe, The -accepteula flag is passed automatically.
+    #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
@@ -36,6 +71,31 @@ function Get-BlockingProcesses {
 }
 
 function Stop-FileLock {
+    <#
+    .SYNOPSIS
+    Identifies and terminates processes holding a lock on a specified file.
+
+    .DESCRIPTION
+    Prompts for filename and an optional remote computer name, then uses Handl.exe to identify any processes
+    with an open handle on that file. If blocking processes are found, they are listed and the user is prompted
+    to confirm before each is forcibly terminated with Stop-Process. The Sysinternals path is read from the 
+    toolkit configuration via Get-ToolkitConfig.
+
+    .PARAMETER FileName
+    Optional. The name or path of the locked file. If not provided, the user is prompted.
+
+    .PARAMETER ComputerName
+    Optional. The name of a remote computer to target. If not provided, the user is prompted and may leave blank
+    to target the local machine.
+
+    .EXAMPLE
+    Stop-FileLock
+    # Prompts for a filename and computer name, then unlocks the file if processes are found.
+
+    .NOTES
+    Author: Alexander Christian
+    Rewuires Sysinternals Handle.exe. The path is read from the SysinternalsPath toolkit config key.
+    #>
     [CmdletBinding()]
     param(
         [string]$FileName,

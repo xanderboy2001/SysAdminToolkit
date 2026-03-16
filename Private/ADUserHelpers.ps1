@@ -1,4 +1,30 @@
 function Convert-UsernameFormat {
+    <#
+    .SYNOPSIS
+    Normalizes a username string to lowercase and strips any email domain suffix.
+
+    .DESCRIPTION
+    Converts the input username to lowercase. If the username contains the '@' symbol, everything from the '@'
+    onward is removed, leaving only the local-part of the address. This allowes email addresses to be passed in
+    and treated as plain usernames.
+    
+    .PARAMETER Username
+    The raw username or email address string to normalize.
+
+    .EXAMPLE
+    Convert-UsernameFormat -Username 'John.Doe@contoso.com'
+    # Returns 'john.doe'
+
+    .EXAMPLE
+    Convert-UsernameFormat -Username 'JDOE'
+    # Returns 'jdoe'
+    
+    .OUTPUTS
+    System.String. The normalized username.
+
+    .NOTES
+    Author: Alexander Christian
+    #>
     param([String]$Username)
 
     $Username = $Username.ToLower()
@@ -12,19 +38,66 @@ function Convert-UsernameFormat {
 }
 
 function Read-Username {
+    <#
+    .SYNOPSIS
+    Prompts the user to enter a username and validates its format.
+
+    .DESCRIPTION
+    Repeatedly prompts for a username until the input matches one of the accepted formats:
+    - 'firstname.lastname' (e.g. john.doe)
+    - 'firstname lastname' (e.g. john doe)
+    - 'firstnamelastinitial' (e.g. johnd)
+
+    Input is normalized through Conver-UsernameFormat before validation.
+
+    .EXAMPLE
+    $username = Read-Username
+    # Prompts for a username and returns it once a valid format is entered.
+
+    .OUTPUTS
+    System.String. The validated and normalized username string.
+
+    .NOTES
+    Author: Alexander Christian
+    #>
     while ($true) {
         $usernameInput = Read-Host -Prompt 'Enter the username of the user'
         $username = Convert-UsernameFormat -Username $usernameInput
 
-        if ($username -match '^[a-z]+\.[a-z]+$' -or $username -match '^[a-z]+ [a-z]+$' -or $username -match '^[a-z]+$') {
+        if (
+            $username -match '^[a-z]+\.[a-z]+$' -or `
+                $username -match '^[a-z]+ [a-z]+$' -or `
+                $username -match '^[a-z]+$'
+        ) {
             return $username
         }
 
-        Write-Host "Invalid input must be in either format: '<first name>.<last name>', '<first name> <last name>', or <first name><last initial>" -ForegroundColor Red
+        Write-Host "Invalid input must be in either format: '<first name>.<last name>', " + `
+            "'<first name> <last name>', or <first name><last initial>" `
+            -ForegroundColor Red
     }
 }
 
 function Read-Password {
+    <#
+    .SYNOPSIS
+    Securely reads and confirms a password from the user.
+
+    .DESCRIPTION
+    Prompts the user to enter a password twice as a SecureString and compares the two entries
+    character-by-character using BSTR marshaling to avoid storing the password in plaintext at any point in
+    memory. Continues prompting until both entries match. Returns the confirmed password as a SecureString.
+
+    .EXAMPLE
+    $securePassword = Read-Password
+    # Prompts for a password twice and returns it as a SecureString once entries match.
+
+    .OUTPUTS
+    System.Security.SecureString. The confirmed password.
+
+    .NOTES
+    Author: Alexander Christian
+    #>
 
     # Loop until passwords match
     while ($true) {
@@ -69,6 +142,30 @@ function Read-Password {
 }
 
 function Get-ValidADUser {
+    <#
+    .SYNOPSIS
+    Prompts for a username and returns a validated Active Directory user object.
+
+    .DESCRIPTION
+    Repeatedly prompts for a username via Read-Username and attempts to locate the corresponding user in
+    Active Directory. Accepts two lookup strategies depeding on the format of the username:
+
+    - 'firstname.lastname' or single-word usernames are looked up directly by identity using Get-ADUser -Identity.
+    - 'firstname lastname' (space-separated) performs a display name filter search.
+      If multiple accounts match, the user is prompted to refine their input.
+
+    Continues prompting until exactly one matching account is found.
+
+    .EXAMPLE
+    $user = Get-ValidADUser
+    # Prompts for a username and returns the matching ADUser object.
+
+    .OUTPUTS
+    Microsoft.ActiveDirectory.Management.ADUser. The resolved Active Directory user object.
+
+    .NOTES
+    Author: Alexander Christian
+    #>
     while ($true) {
         $username = Read-Username
 

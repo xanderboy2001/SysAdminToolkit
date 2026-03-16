@@ -30,7 +30,8 @@ If locked, the script will prompt for confirmation before unlocking the account.
 
     if ($isLocked) {
         Write-Host "$username is locked" -ForegroundColor Yellow
-        Write-Host "Ensure you verify the user's identity via security questions or manager approval." -ForegroundColor Yellow
+        Write-Host "Ensure you verify the user's identity via security questions or manager approval." `
+            -ForegroundColor Yellow
         $action = "Unlock AD account for $username"
         if (Confirm-UserChoice -Action $action) {
             Unlock-ADAccount -Identity $username

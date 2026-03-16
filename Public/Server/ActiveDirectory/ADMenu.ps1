@@ -1,15 +1,3 @@
-<#
-.SYNOPSIS
-Active Directory submenu functions for the SysAdmin Toolkit.
-
-.DESCRIPTION
-Contains the Show-ADMenu function, which displays Active Directory-related options
-such as Reset Password, Unlock Account, Disable User, and Create User.
-Handles user input and navigates back to the Server menu if requested.
-
-.NOTES
-Author: Alexander Christian
-#>
 function Show-ADMenu {
     <#
     .SYNOPSIS
@@ -17,7 +5,7 @@ function Show-ADMenu {
 
     .DESCRIPTION
     Shows Active Directory-related options such as Reset Password, Unlock Account,
-    Disable User, and Create User. Handles user input and executes the corresponding
+    Disable User, and Start AD Sync. Handles user input and executes the corresponding
     action placeholder or returns to the Server menu if requested.
 
     .EXAMPLE

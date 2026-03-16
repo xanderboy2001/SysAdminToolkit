@@ -1,22 +1,10 @@
-<#
-.SYNOPSIS
-Server menu functions for the SysAdmin Toolkit.
-
-.DESCRIPTION
-Contains the Show-ServerMenu function, which displays server-related options
-such as Active Directory, and Troubleshooting.
-Handles user input and navigates to submenus or returns to the main menu.
-
-.NOTES
-Author: Alexander Christian
-#>
 function Show-ServerMenu {
     <#
     .SYNOPSIS
     Displays the Server menu in the SysAdmin Toolkit.
 
     .DESCRIPTION
-    Shows the server-specific menu with options for Active Directory, and Troubleshooting.
+    Shows the server-specific menu with options for Active Directory, Remote Desktop, and Troubleshooting.
     Handles user input and navigates to the appropriate submenu or returns to the main menu if requested.
 
     .EXAMPLE
