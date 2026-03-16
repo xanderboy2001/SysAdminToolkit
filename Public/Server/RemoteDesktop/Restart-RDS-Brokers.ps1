@@ -1,64 +1,5 @@
 #Requires -Version 5.1
 #Requires -RunAsAdministrator
-<#
-.SYNOPSIS
-
-    Automates the maintenance reboot cycle for two Remote Desktop Services (RDS) Connection Brokers configured
-    in High Availability
-
-.DESCRIPTION
-
-    This script performs a controlled, staggered reboot of the two RDS Connection Brokers to ensure continuous
-    availability during maintenance.
-
-    The script follows the following procedure:
-
-        1. Determines the currently Active and Inactive broker nodes.
-        2. Reboots the Inactive broker and waits for the 'Remote Desktop Connection Broker' service to come
-           back online.
-        3. Switches the Active Management Server role to the newly rebooted (formerly inactive) broker.
-        4. Reboots the broker that was originally Active (now the inactive node).
-
-    The script utilizes transcript logging to record all operations and errors to a specific log file. It
-    includes error handling to stop execution if critical steps (such as determining the active broker or
-    switching roles) fail.
-
-.NOTES
-
-    File Name     : Reboot_RDS_Brokers.ps1
-    Author        : Alexander Christian
-    Updated       : 02-27-2026
-    Prerequisite  : This script must be run with administrative privileges on a server with the RDS PowerShell
-                    modules installed.
-    Requirements  : 
-        - Remote Desktop Services module (for Get-RDConnectionBrokerHighAvailability,
-          Set-RDActiveManagementServer).
-        - Remote PowerShell (WinRM) access to both broker servers.
-        - Administrative rights on both broker servers.
-
-    Configuration : Before running, verify the variables in the 'Configuration' section:
-                    - $Broker1FQDN: Fully Qualified Domain Name of the first broker.
-                    - $Broker2FQDN: Fully Qualified Domain Name of the second broker.
-                    - $LogDir: Directoryy where the transcript log will be saved.
-                    - $TimeoutSecs: Timeout for the Restart-Computer command.
-                    - $MaxRetries: Retry limit for waiting for services to start.
-
-.EXAMPLE
-    PS C:\Scripts\> .\Reboot_RDS_Brokers.ps1
-
-    Runs the maintenance cycle. The script does not accept parameters; it relies on the configuration variables
-    defined at the top of the script.
-
-.INPUTS
-    None. This script does not accept pipeline input.
-
-.OUTPUTS
-    None.
-
-#>
-[CmdletBinding()]
-param()
-
 function Get-ActiveBroker {
     <#
     .SYNOPSIS
@@ -314,6 +255,46 @@ function Switch-ActiveBroker {
 
 
 function Restart-RDS-Brokers {
+    <#
+    .SYNOPSIS
+    Performs a staggered maintenance reboot of all RDS Connection Brokers in a High Availability group.
+ 
+    .DESCRIPTION
+    Resolves the Connection Broker server, retrieves all broker nodes in the HA group, and performs
+    a controlled reboot sequence:
+ 
+        1. Identifies the currently active and inactive brokers.
+        2. Reboots each inactive broker and waits for RDS services to come back online.
+        3. Promotes an inactive broker to active via Switch-ActiveBroker.
+        4. Reboots the originally active broker.
+ 
+    Timeout and retry values are read from the toolkit configuration if not supplied as parameters.
+    The Connection Broker is also read from configuration if not provided.
+ 
+    .PARAMETER BrokerServer
+    Optional. The hostname or FQDN of any broker in the HA group. If not provided and not set in
+    the toolkit configuration, the user is prompted.
+ 
+    .PARAMETER TimeoutSecs
+    Optional. Seconds to wait for a broker to respond after reboot. Defaults to the RDTimeoutSecs
+    configuration value if 0 or not supplied.
+ 
+    .PARAMETER MaxRetries
+    Optional. Maximum number of service polling attempts per broker. Defaults to the RDMaxRetries
+    configuration value if 0 or not supplied.
+ 
+    .EXAMPLE
+    Restart-RDS-Brokers -BrokerServer 'broker01'
+    # Reboots all brokers in the HA group reachable via broker01.
+ 
+    .EXAMPLE
+    Restart-RDS-Brokers
+    # Reads the broker server from toolkit config and performs the full reboot cycle.
+ 
+    .NOTES
+    Author: Alexander Christian
+    Requires the RemoteDesktop PowerShell module and WinRM access to all broker servers.
+    #>
     [CmdletBinding()]
     param(
         [string]$BrokerServer,
@@ -331,8 +312,8 @@ function Restart-RDS-Brokers {
         }
         if (-not $BrokerServer) {
             if ($config.RDBrokerServer = '') { 
-                $BrokerServer = Read-Host "Enter the name of one of the Remote Desktop Connection Broker Servers" + `
-                    " (e.g. 'broker1')"
+                $BrokerServer = Read-Host "Enter the name of one of the" + `
+                    "Remote Desktop Connection Broker Servers (e.g. 'broker1')"
             }
             else {
                 $BrokerServer = $config.RDBrokerServer

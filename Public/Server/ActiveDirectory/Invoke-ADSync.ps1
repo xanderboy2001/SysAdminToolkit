@@ -1,6 +1,24 @@
 
 function Invoke-ADSync {
+    <#
+    .SYNOPSIS
+    Triggers a delta synchronization cycle on the configured AD Connect server.
 
+    .DESCRIPTION
+    Resolves and verifies connectivity to the AD Connect server specified in the toolkit configuration
+    (or prompts for one if not configured). Connects to the server via Invoke-Command and runs
+    Start-ADSyncSyncCycle with the Delta policy type. Waits for the sync cycle to begin and then polls until
+    it completes before returning.
+
+    .EXAMPLE
+    Invoke-ADSync
+    # Triggers a delta AD sync on the configured AD Connect server and waits for completion.
+    
+    .NOTES
+    Author: Alexander Christian
+    Requires the ADSync module to be installed on the target AD Connect server.
+    The ADConnectServer value is read from the toolkit configuration via Get-ToolkitConfig.
+    #>
     Show-MenuHeader -Title 'Run AD Delta Sync'
     Write-Host 'This script triggers an Active Directory Delta sync.' -ForegroundColor Yellow
 

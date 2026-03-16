@@ -1,4 +1,26 @@
 function Select-RDSessionCollection {
+    <#
+    .SYNOPSIS
+    Prompts the user to select a Remote Desktop session collection from a list.
+
+    .DESCRIPTION
+    Displays a numbered list of the provided session collection names and prompts the user to enter a
+    corresponding number. Continues prompting until a valid selection is made. Returns the name of the
+    selected collection.
+
+    .PARAMETER Collections
+    An array of session collection name strings to present to the user.
+
+    .EXAMPLE
+    $collection = Select-RDSessionCollection -Collection @('desktops', 'apps')
+    # Displays a numbered list and returns the name of the collection the user selects.
+    
+    .OUTPUTS
+    System.String. The name of the selected session collection.
+
+    .NOTES
+    Author: Alexander Christian
+    #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
@@ -18,6 +40,31 @@ function Select-RDSessionCollection {
 }
 
 function Select-Servers {
+    <#
+    .SYNOPSIS
+    Prompts the user to select one or more Remote Desktop session hosts from a list.
+
+    .DESCRIPTION
+    Displays a numbered list of session hosts with their current connection state.
+    Hosts with new connections allowed are shown in green; disabled hosts in red.
+    The user may enter a comma-separated list of numbers to select multiple hosts.
+    Continues prompting until all entered indices are within the valid range.
+    Returns an array of the selected server objects.
+
+    .PARAMETER Servers
+    An array of objects with SessionHost and NewConnectionAllowed properties, as returned by Get-RDSessionHost
+    with computed properties applied.
+
+    .EXAMPLE
+    $selected = Select-Servers -Servers $sessionHosts
+    # Displays the session host list and returns the objects the user selected.
+    
+    .OUTPUTS
+    System.Object[]. The selected session host objects.
+
+    .NOTES
+    Author: Alexander Christian
+    #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
@@ -44,6 +91,31 @@ function Select-Servers {
 }
 
 function Set-RDSessionHostMode {
+    <#
+    .SYNOPSIS
+    Toggles the connection acceptance on one or more Remote Desktop session hosts.
+
+    .DESCRIPTION
+    Resolves and verifies connectivity to the specified Connection Broker, retrieves all Remote Desktop session
+    collections of type 'Remote Desktop', and prompts the user to select a collection and then one or more session
+    hosts to toggle. Session hosts that currently allow new connections are disabled, and hosts that are disabled
+    are enabled.
+
+    .PARAMETER ConnectionBroker
+    Optional. The hostname or FQDN of a Remote Desktop Connection Broker. If not provided, the user is prompted
+    to enter one.
+
+    .EXAMPLE
+    Set-RDSessionHostMode -ConnectionBroker 'broker01'
+    # Connects to broker01 and walks through collection and host selection interactively.
+    
+    .EXAMPLE
+    Set-RDSessionHostMode
+    # Prompts for the Connection Broker name, then proceeds interactively.
+    
+    .NOTES
+    Author: Alexander Christian
+    #>
     [CmdletBinding()]
     param(
         [string]$ConnectionBroker
