@@ -36,6 +36,7 @@ function Show-MenuOptions {
     .NOTES
     Author: Alexander Christian
     #>
+    [CmdletBinding()]
     param(
         [String[]]$Options
     )
@@ -76,6 +77,7 @@ function Show-MenuHeader {
     .NOTES
     Author: Alexander Christian
     #>
+    [CmdletBinding()]
     param(
         [String]$Title,
         [int]$MenuWidth = 72 # default width; can be adjusted
@@ -117,7 +119,7 @@ function Show-MenuInstructions {
     .NOTES
     Author: Alexander Christian
     #>
-
+    [CmdletBinding()]
     param(
         [String[]]$QuitOptions,
         [String[]]$BackOptions
@@ -126,12 +128,13 @@ function Show-MenuInstructions {
     Write-Host 'Please enter the corresponding number to select the item.' -ForegroundColor White
 
     if ($QuitOptions) {
-        Write-Host "You may also enter $($QuitOptions -join ', ') to quit the application." -ForegroundColor Yellow
+        $QuitOptList = $QuitOptions -join ', '
+        Write-Host "You may also enter $QuitOptList to quit the application." -ForegroundColor Yellow
     }
 
     if ($BackOptions) {
-        Write-Host "You may also enter $($BackOptions -join ', ') to return to the main menu." `
-            -ForegroundColor Yellow
+        $BackOptList = $BackOptions -join ', '
+        Write-Host "You may also enter $BackOptList to return to the main menu." -ForegroundColor Yellow
     }
 }
 
@@ -164,7 +167,8 @@ function Read-MenuSelection {
     .NOTES
     Author: Alexander Christian
     #>
-
+    [CmdletBinding()]
+    [OutputType([hashtable])]
     param(
         [String[]]$Options,
         [String[]]$QuitOptions,
@@ -176,25 +180,45 @@ function Read-MenuSelection {
 
     # Quit
     if ($choice -in $QuitOptions) {
-        return @{ Quit = $true; Back = $false; Choice = $choice; Index = $null }
+        return @{
+            Quit    = $true
+            Back    = $false
+            Choice  = $choice
+            Index   = $null
+        }
     }
 
     # Back
     if ($choice -in $BackOptions) {
-        return @{ Quit = $false; Back = $true; Choice = $choice; Index = $null }
+        return @{
+            Quit    = $false
+            Back    = $true
+            Choice  = $choice
+            Index   = $null
+        }
     }
 
     # Numeric menu choice
     if ($choice -match '^\d+$') {
         $i = [int]$choice
         if ($i -ge 1 -and $i -le $Options.Count) {
-            return @{ Quit = $false; Back = $false; Choice = $choice; Index = $i - 1 }
+            return @{
+                Quit    = $false
+                Back    = $false
+                Choice  = $choice
+                Index   = $i - 1
+            }
         }
     }
 
     # Invalid input
     Write-Host 'Invalid input' -ForegroundColor Red
-    return @{Quit = $false; Back = $false; Choice = $choice; Index = $null }
+    return @{
+        Quit    = $false
+        Back    = $false
+        Choice  = $choice
+        Index   = $null
+    }
 }
 
 function Show-Menu {
@@ -225,7 +249,8 @@ function Show-Menu {
     .NOTES
     Author: Alexander Christian
     #>
-
+    [CmdletBinding()]
+    [OutputType([hashtable])]
     param(
         [String]$Title,
         [String[]]$Options,
@@ -242,7 +267,7 @@ function Show-Menu {
 function Confirm-UserChoice {
     <#
     .SYNOPSIS
-    Prompts the user to confirm a potentially descructive or significant action.
+    Prompts the user to confirm a potentially destructive or significant action.
 
     .DESCRIPTION
     Displays a confirmation prompt describing the action about to be taken and requires the user to enter
@@ -250,7 +275,7 @@ function Confirm-UserChoice {
     $false otherwise.
 
     .PARAMETER Action
-    A string describing the action to confirm, enbedded in the prompt message.
+    A string describing the action to confirm, embedded in the prompt message.
 
     .EXAMPLE
     if (Confirm-UserChoice -Action 'disable the account for jdoe') {
@@ -259,11 +284,13 @@ function Confirm-UserChoice {
     # Asks the user to confirm before disabling the account.
 
     .OUTPUTS
-    System.Boolean. Returns $true if the user entered 'y' or 'yes'; $false for 'n' or 'no.
+    System.Boolean. Returns $true if the user entered 'y' or 'yes'; $false for 'n' or 'no'.
 
     .NOTES
     Author: Alexander Christian
     #>
+    [CmdletBinding()]
+    [OutputType([bool])]
     param(
         [String]$Action
     )

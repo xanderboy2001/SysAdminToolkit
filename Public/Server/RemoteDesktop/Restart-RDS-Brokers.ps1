@@ -3,29 +3,29 @@
 function Get-ActiveBroker {
     <#
     .SYNOPSIS
-
-        Uses Get-RDConnectionBrokerHighAvailability to query RD Connection Broker server information.
-        It then returns the FQDN of the active broker.
+    Uses Get-RDConnectionBrokerHighAvailability to query RD Connection Broker server information.
+    It then returns the FQDN of the active broker.
 
     .DESCRIPTION
+    Since broker1 and broker2 are configured in High Availability, we can use either in the
+    '-ConnectionBroker' parameter. This function uses broker1 first, and if that fails for whatever reason,
+    the function will try to get the active broker from broker2. If both fail or return nothing, the
+    function throws an error.
 
-        Since broker1 and broker2 are configured in High Availability, we can use either in the
-        '-ConnectionBroker' parameter. This function uses broker1 first, and if that fails for whatever reason,
-        the function will try to get the active broker from broker2. If both fail or return nothing, the
-        function throws an error.
+    .PARAMETER BrokerServers
+    An array of Connection Broker FQDNs or hostnames to query in order. The first server that responds
+    successfully determines the active broker.
 
     .EXAMPLE
-
-        PS> Get-ActiveBroker
-        broker.domain.com
+    Get-ActiveBroker -BrokerServers @('broker1.domain.com', 'broker2.domain.com')
+    broker.domain.com
 
     .OUTPUTS
-
-        [System.String]. Returns the FQDN of the active broker.
+    [System.String]. Returns the FQDN of the active broker.
 
     #>
-    [OutputType([string])]
     [CmdletBinding()]
+    [OutputType([string])]
     param(
         [Parameter(Mandatory)]
         [string[]]$BrokerServers
@@ -35,7 +35,7 @@ function Get-ActiveBroker {
     foreach ($server in $BrokerServers) {
         try {
             $ActiveServer = (
-                Get-RDConnectionBrokerHighAvailability -ConnectionBroker $server
+                Get-RDConnectionBrokerHighAvailability -ConnectionBroker $server -ErrorAction Stop
             ).ActiveManagementServer
             break
         }
@@ -46,30 +46,29 @@ function Get-ActiveBroker {
         }
     }
     if ($ActiveServer) {
-        return $ActiveServer
+        $ActiveServer
     }
     else {
         throw "Failed to determine the active broker."
     }
 }
 
-function Wait-ForRDMServices {
+function Wait-RDMService {
     <#
     .SYNOPSIS
-
-        Runs Get-Service on the specified computer to query the status of the 'Remote Desktop Connection Broker'
-        service. The function returns when the service is started.
+    Runs Get-Service on the specified computer to query the status of the 'Remote Desktop Connection Broker'
+    service. The function returns when the service is started.
 
     .PARAMETER ComputerName
-        [string] Specifies the computer to run the service status check on.
+    [string] Specifies the computer to run the service status check on.
 
     .EXAMPLE
-        
-        PS> Wait-ForRDMServices broker.domain.com
+    Wait-RDMService -ComputerName broker.domain.com
+    # Polls until all RDS services are running on broker.domain.com
 
-    .EXAMPLE
-        
-        PS> Wait-ForRDMServices -ComputerName broker.domain.com
+    .EXAMPLE    
+    Wait-RDMService -ComputerName broker.domain.com -MaxRetries 20
+    # Polls up to 20 times before throwing a timeout error.
 
     #>
     [CmdletBinding()]
@@ -113,8 +112,8 @@ function Wait-ForRDMServices {
             }
         }
         catch {
-            Write-Host "Unable to query service status on $ComputerName (Attempt $RetryCount):" + `
-                "$($_.Exception.Message)" -ForegroundColor Yellow
+            Write-Host ("Unable to query service status on $ComputerName (Attempt $RetryCount):" +
+                "$($_.Exception.Message)") -ForegroundColor Yellow
         }
         $RetryCount++
     } until ($ServicesReady -eq $true -or $RetryCount -gt $MaxRetries)
@@ -191,7 +190,7 @@ function Restart-ServerAndWait {
         Write-Host "$ComputerName has successfully rebooted." -ForegroundColor Green
         
         Write-Host "Waiting for Remote Desktop services to start..." -ForegroundColor Cyan
-        Wait-ForRDMServices $ComputerName -MaxRetries $MaxRetries
+        Wait-RDMService -ComputerName $ComputerName -MaxRetries $MaxRetries
         Write-Host "Remote Desktop services have started on $ComputerName." -ForegroundColor Green
 
         Write-Host "Waiting 30 seconds for database syncronization..." -ForegroundColor Cyan
@@ -238,7 +237,7 @@ function Switch-ActiveBroker {
     )
 
     try {
-        Set-RDActiveManagementServer -ManagementServer $NewActiveBroker
+        Set-RDActiveManagementServer -ManagementServer $NewActiveBroker -ErrorAction Stop
         Write-Host "Successfully set $NewActiveBroker as the active broker." -ForegroundColor Green
     }
     catch {
@@ -248,13 +247,13 @@ function Switch-ActiveBroker {
     # Wait, then check if $InactiveBroker was successfully made active.
     Start-Sleep -Seconds 10
     if ((Get-ActiveBroker -BrokerServers $BrokerServers) -ne $NewActiveBroker) {
-        throw ("Failed to switch the Active Management Server to $NewActiveBroker." + `
+        throw ("Failed to switch the Active Management Server to $NewActiveBroker." +
                 "Current active is still $ActiveBroker.")
     }
 }
 
 
-function Restart-RDS-Brokers {
+function Restart-RDS-Broker {
     <#
     .SYNOPSIS
     Performs a staggered maintenance reboot of all RDS Connection Brokers in a High Availability group.
@@ -311,15 +310,19 @@ function Restart-RDS-Brokers {
             $MaxRetries = $config.RDMaxRetries 
         }
         if (-not $BrokerServer) {
-            if ($config.RDBrokerServer = '') { 
-                $BrokerServer = Read-Host "Enter the name of one of the" + `
-                    "Remote Desktop Connection Broker Servers (e.g. 'broker1')"
+            if (-not $config.RDBrokerServer) { 
+                $BrokerServer = Read-Host ("Enter the name of one of the " +
+                    "Remote Desktop Connection Broker Servers (e.g. 'broker1')")
             }
             else {
                 $BrokerServer = $config.RDBrokerServer
             }
         }
-        $BrokerServerFQDN = [System.Net.Dns]::GetHostByName($BrokerServer).HostName.ToUpper()
+        try {
+            $BrokerServerFQDN = [System.Net.Dns]::GetHostByName($BrokerServer).HostName.ToUpper()
+        } catch [System.Net.Sockets.SocketException] {
+            throw "Could not resolve hostname '$BrokerServer': $($_.Exception.Message)"
+        }
         Write-Host "Testing connection to $BrokerServerFQDN..." -ForegroundColor Cyan
         if (-not (Test-Connection -TargetName $BrokerServerFQDN -Count 1 -Quiet)) {
             throw "Could not connect to $BrokerServerFQDN"
@@ -327,7 +330,7 @@ function Restart-RDS-Brokers {
         Write-Host "Connection to $BrokerServerFQDN verified." -ForegroundColor Green
         try {
             Write-Host "Getting list of broker servers..." -ForegroundColor Cyan
-            $BrokerServers = (Get-RDServer -ConnectionBroker $BrokerServerFQDN -Role RDS-CONNECTION-BROKER).Server
+            $BrokerServers = (Get-RDServer -ConnectionBroker $BrokerServerFQDN -Role RDS-CONNECTION-BROKER -ErrorAction Stop).Server
             Write-Host "Retrieved list of broker servers." -ForegroundColor Green
         }
         catch {
@@ -352,14 +355,16 @@ function Restart-RDS-Brokers {
 
             $NewActiveBroker = $InactiveBrokers[0]
             Write-Host "Switching active broker from $ActiveBroker to $NewActiveBroker..." -ForegroundColor Cyan
-            Switch-ActiveBroker `
-                -ActiveBroker $ActiveBroker `
-                -NewActiveBroker $NewActiveBroker `
-                -BrokerServers $BrokerServers
+            $SwitchParams = @{
+                ActiveBroker = $ActiveBroker
+                NewActiveBroker = $NewActiveBroker
+                BrokerServers = $BrokerServers
+            }
+            Switch-ActiveBroker @SwitchParams
             Write-Host "Active Broker is now $NewActiveBroker" -ForegroundColor Green
 
-            Write-Host "Beginning the reboot-and-wait process for the original active broker ($ActiveBroker)..." `
-                -ForegroundColor Cyan
+            $msg = "Beginning the reboot-and-wait process for the original active broker ($ActiveBroker)..."
+            Write-Host $msg -ForegroundColor Cyan
             Restart-ServerAndWait -ComputerName $ActiveBroker -TimeoutSecs $TimeoutSecs -MaxRetries $MaxRetries
             Write-Host "Reboot-and-wait process for $ActiveBroker completed." -ForegroundColor Green
         }

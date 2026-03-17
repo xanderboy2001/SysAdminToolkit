@@ -20,6 +20,8 @@ function Initialize-ToolkitConfig {
     Author: Alexander Christian
     This function is called once during module load in SysAdminToolkit.psm1.
     #>
+    [CmdletBinding()]
+    param()
     $defaults = @{}
     (Import-PowerShellDataFile -Path $script:DefaultConfigPath).GetEnumerator() |
         ForEach-Object { $defaults[$_.Key] = $_.Value }
@@ -67,6 +69,9 @@ function Get-ToolkitConfig {
     .NOTES
     Author: Alexander Christian
     #>
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param()
     return $script:ToolkitConfig
 }
 
@@ -93,7 +98,7 @@ function Save-ToolkitConfig {
     .NOTES
     Author: Alexander Christian
     #>
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess)]
     param(
         [Parameter(Mandatory)]
         [hashtable]$Config
@@ -111,7 +116,9 @@ function Save-ToolkitConfig {
         }
     }
     $lines += '}'
-
-    Set-Content -Path $script:ConfigPath -Value $lines -Encoding UTF8
-    $script:ToolkitConfig = $Config
+    
+    if ($PSCmdlet.ShouldProcess($script:ConfigPath, 'Write toolkit configuration')) {
+        Set-Content -Path $script:ConfigPath -Value $lines -Encoding UTF8
+        $script:ToolkitConfig = $Config
+    }
 }

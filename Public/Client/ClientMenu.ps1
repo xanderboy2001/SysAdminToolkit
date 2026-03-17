@@ -14,6 +14,8 @@ function Show-ClientMenu {
     .NOTES
     Author: Alexander Christian
     #>
+    [CmdletBinding()]
+    param()
     $menuOptions = @(
         'Unlock a file being held by a process'
     )

@@ -35,6 +35,7 @@ function Get-BlockingProcesses {
     Requires Sysinternals Handle.exe, The -accepteula flag is passed automatically.
     #>
     [CmdletBinding()]
+    [OutputType([pscustomobject[]])]
     param(
         [Parameter(Mandatory)]
         [string]$FileName,
@@ -49,8 +50,13 @@ function Get-BlockingProcesses {
     }
 
     if ($ComputerName) {
-        $job = Invoke-Command -ComputerName $ComputerName `
-            -ScriptBlock $ProcessFinderCommand -ArgumentList $FileName, $HandleExePath -AsJob
+        $InvokeParams = @{
+            ComputerName    = $ComputerName
+            ScriptBlock     = $ProcessFinderCommand
+            ArgumentList    = $FileName, $HandleExePath
+            AsJob           = $true
+        }
+        $job = Invoke-Command @InvokeParams
     }
     else {
         $job = Start-Job -ScriptBlock $ProcessFinderCommand -ArgumentList $FileName, $HandleExePath
@@ -58,16 +64,20 @@ function Get-BlockingProcesses {
 
     $i = 0
     while ($job.State -eq 'Running') {
-        Write-Progress -Activity "Searching for processes holding $FileName" `
-            -Status "Please wait..." -PercentComplete ($i % 100)
+        $ProgressParams = @{
+            Activity        = "Searching for processes holding $FileName"
+            Status          = "Please wait..."
+            PercentComplete = $i % 100
+        }
+        Write-Progress @ProgressParams
         $i += 5
         Start-Sleep -Milliseconds 200
     }
     Write-Progress -Activity "Searching for processes holding $FileName" -Completed
 
-    $processes = Receive-Job $job | ConvertFrom-Csv
-    Remove-Job $job
-    return $processes
+    $processes = Receive-Job -Job $job | ConvertFrom-Csv
+    Remove-Job -Job $job
+    $processes
 }
 
 function Stop-FileLock {
@@ -116,15 +126,19 @@ function Stop-FileLock {
 
     process {
         if ($ComputerName) {
-            $processes = Get-BlockingProcesses -ComputerName $ComputerName `
-                -FileName $FileName -HandleExePath $handleExe
+            $BlockingParams = {
+                ComputerName    = $ComputerName
+                FileName        = $FileName
+                HandleExePath   = $handleExe
+            }
+            $processes = Get-BlockingProcesses @BlockingParams
         }
         else {
             $processes = Get-BlockingProcesses -FileName $FileName -HandleExePath $handleExe
         }
 
         if ($processes) {
-            $processes | ForEach-Object { Write-Host "Found process $($_.Process) ($($processes.PID))" }
+            $processes | ForEach-Object { Write-Host "Found process $($_.Process) ($($_.PID))" }
             $confirmation = Read-Host "End the processes? [Y/n]"
             if ($confirmation -and $confirmation -notlike 'y') {
                 return 
@@ -134,7 +148,7 @@ function Stop-FileLock {
                 $processPID = $_.PID
                 try {
                     Write-Host "Ending process $processName ($processPID)..." -ForegroundColor Yellow
-                    Stop-Process -Id $_.PID -Force
+                    Stop-Process -Id $processPID -Force -ErrorAction Stop
                     Write-Host "Ended process $processName ($processPID)" -ForegroundColor Yellow
                 }
                 catch {
