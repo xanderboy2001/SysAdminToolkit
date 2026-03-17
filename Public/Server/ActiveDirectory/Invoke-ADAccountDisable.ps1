@@ -32,8 +32,8 @@ function Invoke-ADAccountDisable {
             }
         }
         catch {
-            Write-Host "Failed to disable AD account for $username ($($userAccount.Name)): $($_.Exception.Message)" `
-                -ForegroundColor Red
+            $msg = "Failed to disable AD account for $username ($($userAccount.Name)): $($_.Exception.Message)"
+            Write-Host $msg -ForegroundColor Red
         }
     }
 }

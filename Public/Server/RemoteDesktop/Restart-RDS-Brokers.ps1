@@ -248,7 +248,7 @@ function Switch-ActiveBroker {
     Start-Sleep -Seconds 10
     if ((Get-ActiveBroker -BrokerServers $BrokerServers) -ne $NewActiveBroker) {
         throw ("Failed to switch the Active Management Server to $NewActiveBroker." +
-                "Current active is still $ActiveBroker.")
+            "Current active is still $ActiveBroker.")
     }
 }
 
@@ -320,7 +320,8 @@ function Restart-RDS-Broker {
         }
         try {
             $BrokerServerFQDN = [System.Net.Dns]::GetHostByName($BrokerServer).HostName.ToUpper()
-        } catch [System.Net.Sockets.SocketException] {
+        }
+        catch [System.Net.Sockets.SocketException] {
             throw "Could not resolve hostname '$BrokerServer': $($_.Exception.Message)"
         }
         Write-Host "Testing connection to $BrokerServerFQDN..." -ForegroundColor Cyan
@@ -330,7 +331,12 @@ function Restart-RDS-Broker {
         Write-Host "Connection to $BrokerServerFQDN verified." -ForegroundColor Green
         try {
             Write-Host "Getting list of broker servers..." -ForegroundColor Cyan
-            $BrokerServers = (Get-RDServer -ConnectionBroker $BrokerServerFQDN -Role RDS-CONNECTION-BROKER -ErrorAction Stop).Server
+            $ServerParams = @{
+                ConnectionBroker    = $BrokerServerFQDN
+                Role                = 'RDS-CONNECTION-BROKER'
+                ErrorAction         = 'Stop'
+            }
+            $BrokerServers = (Get-RDServer @ServerParams).Server
             Write-Host "Retrieved list of broker servers." -ForegroundColor Green
         }
         catch {
