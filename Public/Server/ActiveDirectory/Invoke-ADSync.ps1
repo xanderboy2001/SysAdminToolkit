@@ -32,7 +32,8 @@ function Invoke-ADSync {
 
     try {
         $ADConnectServerResolved = [System.Net.Dns]::GetHostByName($ADConnectServer).HostName
-    } catch [System.Net.Sockets.SocketException] {
+    }
+    catch [System.Net.Sockets.SocketException] {
         throw "Could not resolve hostname '$ADConnectServer': $($_.Exception.Message)"
     }
     Write-Host "Verifying connection to $ADConnectServerResolved..." -ForegroundColor Cyan

@@ -71,8 +71,8 @@ function Read-Username {
 
         if (
             $username -match '^[a-z]+\.[a-z]+$' -or
-                $username -match '^[a-z]+ [a-z]+$' -or
-                $username -match '^[a-z]+$'
+            $username -match '^[a-z]+ [a-z]+$' -or
+            $username -match '^[a-z]+$'
         ) {
             return $username
         }
@@ -193,7 +193,8 @@ function Get-ValidADUser {
 
             try {
                 $userAccount = Get-ADUser -Filter "Name -eq '$username'" -ErrorAction Stop
-            } catch {
+            }
+            catch {
                 Write-Host "No Active Directory user found with name '$username'." -ForegroundColor Red
                 Write-Host 'Please try again.' -ForegroundColor Yellow
                 continue
