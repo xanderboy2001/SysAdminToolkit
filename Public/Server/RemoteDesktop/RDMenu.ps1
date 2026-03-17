@@ -10,11 +10,13 @@ function Show-RDMenu {
 
     .EXAMPLE
     Show-RDMenu
-    # Displays the Remote Desktio menu and waits for the user to select an option.
+    # Displays the Remote Desktop menu and waits for the user to select an option.
     
     .NOTES
     Author: Alexander Christian
     #>
+    [CmdletBinding()]
+    param()
     $menuOptions = @(
         'Reboot Connection Brokers',
         'Toggle New Connections on Server'
@@ -33,7 +35,7 @@ function Show-RDMenu {
 
     switch ($result.Index) {
         0 {
-            Restart-RDS-Brokers -BrokerServer $brokerServer 
+            Restart-RDS-Broker -BrokerServer $brokerServer 
         }
         1 {
             Set-RDSessionHostMode -ConnectionBroker $brokerServer 

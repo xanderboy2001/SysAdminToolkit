@@ -16,6 +16,8 @@ function Invoke-ADAccountUnlock {
     .NOTES
     Author: Alexander Christian
     #>
+    [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'Medium')]
+    param()
 
     Show-MenuHeader -Title 'Unlock Active Directory Account'
     Write-Host @'
@@ -30,12 +32,19 @@ If locked, the script will prompt for confirmation before unlocking the account.
 
     if ($isLocked) {
         Write-Host "$username is locked" -ForegroundColor Yellow
-        Write-Host "Ensure you verify the user's identity via security questions or manager approval." `
-            -ForegroundColor Yellow
+        $msg = "Ensure you verify the user's identity via security questions or manager approval."
+        Write-Host $msg -ForegroundColor Yellow
         $action = "Unlock AD account for $username"
         if (Confirm-UserChoice -Action $action) {
-            Unlock-ADAccount -Identity $username
-            Write-Host "$username has been unlocked" -ForegroundColor Green
+            if ($PSCmdlet.ShouldProcess($username, 'Unlock AD account')) {
+                try {
+                    Unlock-ADAccount -Identity $username
+                    Write-Host "$username has been unlocked" -ForegroundColor Green
+                }
+                catch {
+                    Write-Host "Failed to unlock ${username}: $($_.Exception.Message)" -ForegroundColor Red
+                }
+            }
         }
     }
     else {

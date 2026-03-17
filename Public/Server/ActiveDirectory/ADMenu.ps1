@@ -15,7 +15,8 @@ function Show-ADMenu {
     .NOTES
     Author: Alexander Christian
     #>
-
+    [CmdletBinding()]
+    param()
     $menuOptions = @(
         'Reset Password'
         'Unlock Account'

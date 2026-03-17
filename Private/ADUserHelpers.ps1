@@ -5,7 +5,7 @@ function Convert-UsernameFormat {
 
     .DESCRIPTION
     Converts the input username to lowercase. If the username contains the '@' symbol, everything from the '@'
-    onward is removed, leaving only the local-part of the address. This allowes email addresses to be passed in
+    onward is removed, leaving only the local-part of the address. This allows email addresses to be passed in
     and treated as plain usernames.
     
     .PARAMETER Username
@@ -25,6 +25,8 @@ function Convert-UsernameFormat {
     .NOTES
     Author: Alexander Christian
     #>
+    [CmdletBinding()]
+    [OutputType([string])]
     param([String]$Username)
 
     $Username = $Username.ToLower()
@@ -48,7 +50,7 @@ function Read-Username {
     - 'firstname lastname' (e.g. john doe)
     - 'firstnamelastinitial' (e.g. johnd)
 
-    Input is normalized through Conver-UsernameFormat before validation.
+    Input is normalized through Convert-UsernameFormat before validation.
 
     .EXAMPLE
     $username = Read-Username
@@ -60,21 +62,23 @@ function Read-Username {
     .NOTES
     Author: Alexander Christian
     #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param()
     while ($true) {
         $usernameInput = Read-Host -Prompt 'Enter the username of the user'
         $username = Convert-UsernameFormat -Username $usernameInput
 
         if (
-            $username -match '^[a-z]+\.[a-z]+$' -or `
-                $username -match '^[a-z]+ [a-z]+$' -or `
+            $username -match '^[a-z]+\.[a-z]+$' -or
+                $username -match '^[a-z]+ [a-z]+$' -or
                 $username -match '^[a-z]+$'
         ) {
             return $username
         }
 
-        Write-Host "Invalid input must be in either format: '<first name>.<last name>', " + `
-            "'<first name> <last name>', or <first name><last initial>" `
-            -ForegroundColor Red
+        Write-Host ("Invalid input must be in either format: '<first name>.<last name>', " +
+            "'<first name> <last name>', or <first name><last initial>") -ForegroundColor Red
     }
 }
 
@@ -98,7 +102,9 @@ function Read-Password {
     .NOTES
     Author: Alexander Christian
     #>
-
+    [CmdletBinding()]
+    [OutputType([System.Security.SecureString])]
+    param()
     # Loop until passwords match
     while ($true) {
 
@@ -148,7 +154,7 @@ function Get-ValidADUser {
 
     .DESCRIPTION
     Repeatedly prompts for a username via Read-Username and attempts to locate the corresponding user in
-    Active Directory. Accepts two lookup strategies depeding on the format of the username:
+    Active Directory. Accepts two lookup strategies depending on the format of the username:
 
     - 'firstname.lastname' or single-word usernames are looked up directly by identity using Get-ADUser -Identity.
     - 'firstname lastname' (space-separated) performs a display name filter search.
@@ -166,6 +172,9 @@ function Get-ValidADUser {
     .NOTES
     Author: Alexander Christian
     #>
+    [CmdletBinding()]
+    [OutputType([Microsoft.ActiveDirectory.Management.ADUser])]
+    param()
     while ($true) {
         $username = Read-Username
 
@@ -182,9 +191,9 @@ function Get-ValidADUser {
 
         if ($username -match '^[a-z]+ [a-z]+$') {
 
-            $userAccount = Get-ADUser -Filter "Name -eq '$username'" -ErrorAction SilentlyContinue
-
-            if ($null -eq $userAccount) {
+            try {
+                $userAccount = Get-ADUser -Filter "Name -eq '$username'" -ErrorAction Stop
+            } catch {
                 Write-Host "No Active Directory user found with name '$username'." -ForegroundColor Red
                 Write-Host 'Please try again.' -ForegroundColor Yellow
                 continue

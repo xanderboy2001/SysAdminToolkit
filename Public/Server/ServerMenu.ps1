@@ -14,7 +14,8 @@ function Show-ServerMenu {
     .NOTES
     Author: Alexander Christian
     #>
-
+    [CmdletBinding()]
+    param()
     $menuOptions = @(
         'Active Directory'
         'Remote Desktop'

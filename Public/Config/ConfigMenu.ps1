@@ -14,6 +14,8 @@ function Show-ConfigMenu {
     .NOTES
     Author: Alexander Christian
     #>
+    [CmdletBinding()]
+    param()
     $menuOptions = @(
         'View Config'
         'Edit Config'
@@ -58,7 +60,9 @@ function Invoke-ViewConfig {
     .NOTES
     Author: Alexander Christian
     #>
-    show-MenuHeader -Title 'Current Configuration'
+    [CmdletBinding()]
+    param()
+    Show-MenuHeader -Title 'Current Configuration'
 
     $config = Get-ToolkitConfig
     $maxKeyLength = ($config.Keys | Measure-Object -Maximum Length).Maximum
@@ -68,7 +72,6 @@ function Invoke-ViewConfig {
         Write-Host "$paddedKey : $($config[$key])"
     }
     Show-ConfigMenu
-    return
 }
 
 function Invoke-EditConfig {
@@ -88,6 +91,8 @@ function Invoke-EditConfig {
     .NOTES
     Author: Alexander Christian
     #>
+    [CmdletBinding()]
+    param()
     do {
         $config = Get-ToolkitConfig
         $keys = [string[]]($config.Keys | Sort-Object)
@@ -160,6 +165,8 @@ function Invoke-ResetConfig {
     .NOTES
     Author: Alexander Christian
     #>
+    [CmdletBinding()]
+    param()
     Show-MenuHeader -Title 'Reset Configuration to Defaults'
 
     if (Confirm-UserChoice -Action 'reset the configuration to defaults') {

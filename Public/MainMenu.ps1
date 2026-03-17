@@ -14,6 +14,8 @@ function Start-ToolkitMenu {
     .NOTES
     Author: Alexander Christian
     #>
+    [CmdletBinding()]
+    param()
     $menuOptions = @('Server', 'Client', 'Config')
 
     do {
