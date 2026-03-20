@@ -18,6 +18,7 @@ function Show-ClientMenu {
     param()
     $menuOptions = @(
         'Unlock a file being held by a process'
+        'Get battery report of all computers'
     )
     $result = Show-Menu -Title 'Client Menu' -Options $menuOptions
 
@@ -31,6 +32,9 @@ function Show-ClientMenu {
     switch ($result.Index) {
         0 {
             Stop-FileLock 
+        }
+        1 {
+            Get-BatteryReport
         }
     }
 }
