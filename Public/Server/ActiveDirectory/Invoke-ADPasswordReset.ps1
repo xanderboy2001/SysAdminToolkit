@@ -41,7 +41,7 @@ The password will be read as a SecureString
                 }
             }
             catch {
-                Write-Host "Failed to reset password: $($_.Exception.Message)" -ForegroundColor Red
+                Write-Error "Failed to reset password: $($_.Exception.Message)"
             }
         }
     }

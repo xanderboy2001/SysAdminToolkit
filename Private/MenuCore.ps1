@@ -36,7 +36,6 @@ function Show-MenuOptions {
     .NOTES
     Author: Alexander Christian
     #>
-    [CmdletBinding()]
     param(
         [String[]]$Options
     )
@@ -77,7 +76,6 @@ function Show-MenuHeader {
     .NOTES
     Author: Alexander Christian
     #>
-    [CmdletBinding()]
     param(
         [String]$Title,
         [int]$MenuWidth = 72 # default width; can be adjusted
@@ -119,7 +117,6 @@ function Show-MenuInstructions {
     .NOTES
     Author: Alexander Christian
     #>
-    [CmdletBinding()]
     param(
         [String[]]$QuitOptions,
         [String[]]$BackOptions
@@ -167,7 +164,6 @@ function Read-MenuSelection {
     .NOTES
     Author: Alexander Christian
     #>
-    [CmdletBinding()]
     [OutputType([hashtable])]
     param(
         [String[]]$Options,
@@ -249,7 +245,6 @@ function Show-Menu {
     .NOTES
     Author: Alexander Christian
     #>
-    [CmdletBinding()]
     [OutputType([hashtable])]
     param(
         [String]$Title,
@@ -289,7 +284,6 @@ function Confirm-UserChoice {
     .NOTES
     Author: Alexander Christian
     #>
-    [CmdletBinding()]
     [OutputType([bool])]
     param(
         [String]$Action
