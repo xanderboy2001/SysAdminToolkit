@@ -36,14 +36,14 @@ function Invoke-ADSync {
     catch [System.Net.Sockets.SocketException] {
         throw "Could not resolve hostname '$ADConnectServer': $($_.Exception.Message)"
     }
-    Write-Host "Verifying connection to $ADConnectServerResolved..." -ForegroundColor Cyan
-    if (-not (Test-Connection -TargetName $ADConnectServerResolved -Count 1 -Quiet)) {
+    Write-Verbose "Verifying connection to $ADConnectServerResolved..."
+    if (-not (Test-Connection -ComputerName $ADConnectServerResolved -Count 1 -Quiet)) {
         throw "$ADConnectServerResolved is not reachable"
     }
     Write-Host "Connection to $ADConnectServerResolved verified." -ForegroundColor Green
 
     try {
-        Write-Host "Beginning delta sync on $ADConnectServerResolved..." -ForegroundColor Cyan
+        Write-Verbose "Beginning delta sync on $ADConnectServerResolved..."
         Invoke-Command -ComputerName $ADConnectServerResolved -ScriptBlock {
             Import-Module ADSync
             Start-ADSyncSyncCycle -PolicyType Delta

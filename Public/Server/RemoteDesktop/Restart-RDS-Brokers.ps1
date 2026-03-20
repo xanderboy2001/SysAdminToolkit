@@ -27,11 +27,15 @@ function Get-ActiveBroker {
     [CmdletBinding()]
     [OutputType([string])]
     param(
-        [Parameter(Mandatory)]
+        [Parameter(
+            Mandatory,
+            HelpMessage = "One or more Connection Broker FQDNs or hostnames to query in order."
+        )]
+        [ValidateNotNullOrEmpty()]
         [string[]]$BrokerServers
     )
 
-    Write-Host "Querying RDS High Availability status..." -ForegroundColor Cyan
+    Write-Verbose "Querying RDS High Availability status..."
     foreach ($server in $BrokerServers) {
         try {
             $ActiveServer = (
@@ -40,8 +44,8 @@ function Get-ActiveBroker {
             break
         }
         catch {
-            Write-Host "Could not get active broker from ${server}: $($_.Exception.Message)" `
-                -ForegroundColor Yellow
+            $msg = "Could not get active broker from ${server}: $($_.Exception.Message)"
+            Write-Warning $msg
             continue
         }
     }
@@ -73,9 +77,17 @@ function Wait-RDMService {
     #>
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)]
+        [Parameter(
+            Mandatory,
+            HelpMessage = "The FQDN or hostname of the broker server to poll for service status."
+        )]
+        [ValidateNotNullOrEmpty()]
         [string]$ComputerName,
-        [Parameter(Mandatory)]
+
+        [Parameter(
+            Mandatory,
+            HelpMessage = "Maximum number of polling attempts before throwing a timeout error."
+        )]
         [int]$MaxRetries
     )
 
@@ -83,9 +95,9 @@ function Wait-RDMService {
     $RetryCount = 0
     $ServiceCheckScript = { 
         Get-Service | Where-Object {
-            $_.Name -eq 'rdms' -or `
-                $_.Name -eq 'tssdis' -or `
-                $_.Name -eq 'tscpubrpc'
+            $_.Name -eq 'rdms' -or
+            $_.Name -eq 'tssdis' -or
+            $_.Name -eq 'tscpubrpc'
         } | Select-Object -Property Name, Status
     }
 
@@ -106,7 +118,8 @@ function Wait-RDMService {
                 $ServicesReady = $true
             }
             else {
-                $status | Where-Object { $_.Status -ne 4 } | ForEach-Object {
+                $running = [System.ServiceProcess.ServiceControllerStatus]::Running
+                $status | Where-Object { $_.Status -ne $running } | ForEach-Object {
                     Write-Host "Waiting for $($_.Name) to start..." -ForegroundColor Cyan
                 }
             }
@@ -163,11 +176,23 @@ function Restart-ServerAndWait {
     #>
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)]
+        [Parameter(
+            Mandatory,
+            HelpMessage = "The FQDN or hostname of the broker server to reboot."
+        )]
+        [ValidateNotNullOrEmpty()]
         [string]$ComputerName,
-        [Parameter(Mandatory)]
+
+        [Parameter(
+            Mandatory,
+            HelpMessage = "Seconds to wait for PowerShell to become available after reboot."
+        )]
         [int]$TimeoutSecs,
-        [Parameter(Mandatory)]
+
+        [Parameter(
+            Mandatory,
+            HelpMessage = "Maximum number of service polling attempts before throwing a timeout error."
+        )]
         [int]$MaxRetries
     )
 
@@ -226,13 +251,25 @@ function Switch-ActiveBroker {
     #>
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)]
+        [Parameter(
+            Mandatory,
+            HelpMessage = "The FQDN of the currently active Connection Broker."
+        )]
+        [ValidateNotNullOrEmpty()]
         [string]$ActiveBroker,
         
-        [Parameter(Mandatory)]
+        [Parameter(
+            Mandatory,
+            HelpMessage = "The FQDN of the broker to promote as the new active Connection Broker."
+        )]
+        [ValidateNotNullOrEmpty()]
         [string]$NewActiveBroker,
 
-        [Parameter(Mandatory)]
+        [Parameter(
+            Mandatory,
+            HelpMessage = "All Connection Broker FQDNs in the HA group, used to verify the switch."
+        )]
+        [ValidateNotNullOrEmpty()]
         [string[]]$BrokerServers
     )
 
@@ -253,7 +290,7 @@ function Switch-ActiveBroker {
 }
 
 
-function Restart-RDS-Broker {
+function Restart-RDSBroker {
     <#
     .SYNOPSIS
     Performs a staggered maintenance reboot of all RDS Connection Brokers in a High Availability group.
@@ -325,7 +362,7 @@ function Restart-RDS-Broker {
             throw "Could not resolve hostname '$BrokerServer': $($_.Exception.Message)"
         }
         Write-Host "Testing connection to $BrokerServerFQDN..." -ForegroundColor Cyan
-        if (-not (Test-Connection -TargetName $BrokerServerFQDN -Count 1 -Quiet)) {
+        if (-not (Test-Connection -ComputerName $BrokerServerFQDN -Count 1 -Quiet)) {
             throw "Could not connect to $BrokerServerFQDN"
         }
         Write-Host "Connection to $BrokerServerFQDN verified." -ForegroundColor Green
