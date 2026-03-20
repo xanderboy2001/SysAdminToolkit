@@ -1,7 +1,8 @@
 @{
-    ADConnectServer  = 'ADConnect'
-    SysinternalsPath = '\\live.sysinternals.com/tools'
-    RDBrokerServer   = ''
-    RDTimeoutSecs    = 600
-    RDMaxRetries     = 15
+    ADConnectServer     = 'ADConnect'
+    RDBrokerServer      = ''
+    RDMaxRetries        = 15
+    RDTimeoutSecs       = 600
+    ReportsPath         = 'C:\ProgramData\SysAdminToolkit\Reports'
+    SysinternalsPath    = '\\live.sysinternals.com/tools'
 }
