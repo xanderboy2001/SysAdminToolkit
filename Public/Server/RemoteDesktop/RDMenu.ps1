@@ -35,7 +35,7 @@ function Show-RDMenu {
 
     switch ($result.Index) {
         0 {
-            Restart-RDS-Broker -BrokerServer $brokerServer 
+            Restart-RDSBroker -BrokerServer $brokerServer 
         }
         1 {
             Set-RDSessionHostMode -ConnectionBroker $brokerServer 

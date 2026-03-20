@@ -25,7 +25,6 @@ function Convert-UsernameFormat {
     .NOTES
     Author: Alexander Christian
     #>
-    [CmdletBinding()]
     [OutputType([string])]
     param([String]$Username)
 
@@ -62,7 +61,6 @@ function Read-Username {
     .NOTES
     Author: Alexander Christian
     #>
-    [CmdletBinding()]
     [OutputType([string])]
     param()
     while ($true) {
@@ -102,7 +100,6 @@ function Read-Password {
     .NOTES
     Author: Alexander Christian
     #>
-    [CmdletBinding()]
     [OutputType([System.Security.SecureString])]
     param()
     # Loop until passwords match
@@ -172,7 +169,6 @@ function Get-ValidADUser {
     .NOTES
     Author: Alexander Christian
     #>
-    [CmdletBinding()]
     [OutputType([Microsoft.ActiveDirectory.Management.ADUser])]
     param()
     while ($true) {
@@ -184,7 +180,7 @@ function Get-ValidADUser {
                 return $userAccount
             }
             catch {
-                Write-Host "No Active Directory user found with username '$username'." -ForegroundColor Red
+                Write-Warning "No Active Directory user found with username '$username'."
                 Write-Host 'Please try again.' -ForegroundColor Yellow
             }
         }

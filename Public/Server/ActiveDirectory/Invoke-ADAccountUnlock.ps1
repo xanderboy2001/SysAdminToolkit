@@ -31,7 +31,7 @@ If locked, the script will prompt for confirmation before unlocking the account.
     $isLocked = (Get-ADUser -Identity $userAccount.SamAccountName -Properties 'LockedOut').LockedOut
 
     if ($isLocked) {
-        Write-Host "$username is locked" -ForegroundColor Yellow
+        Write-Verbose "$username is locked"
         $msg = "Ensure you verify the user's identity via security questions or manager approval."
         Write-Host $msg -ForegroundColor Yellow
         $action = "Unlock AD account for $username"
@@ -42,12 +42,12 @@ If locked, the script will prompt for confirmation before unlocking the account.
                     Write-Host "$username has been unlocked" -ForegroundColor Green
                 }
                 catch {
-                    Write-Host "Failed to unlock ${username}: $($_.Exception.Message)" -ForegroundColor Red
+                    Write-Error "Failed to unlock ${username}: $($_.Exception.Message)"
                 }
             }
         }
     }
     else {
-        Write-Host "$username is not locked" -ForegroundColor Yellow
+        Write-Warning "$username is not locked"
     }
 }

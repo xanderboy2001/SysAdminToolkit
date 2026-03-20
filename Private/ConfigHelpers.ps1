@@ -100,7 +100,7 @@ function Save-ToolkitConfig {
     #>
     [CmdletBinding(SupportsShouldProcess)]
     param(
-        [Parameter(Mandatory)]
+        [Parameter(Mandatory, HelpMessage = "The configuration hashtable to serialize and write to disk")]
         [hashtable]$Config
     )
 
