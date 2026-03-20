@@ -24,7 +24,10 @@ function Select-RDSessionCollection {
     [CmdletBinding()]
     [OutputType([string])]
     param(
-        [Parameter(Mandatory)]
+        [Parameter(
+            Mandatory,
+            HelpMessage = "An array of session collection names to present for user selection."
+        )]
         [string[]]$Collections
     )
 
@@ -69,7 +72,10 @@ function Select-Server {
     [CmdletBinding()]
     [OutputType([psobject[]])]
     param(
-        [Parameter(Mandatory)]
+        [Parameter(
+            Mandatory,
+            HelpMessage = "Session host objects with SessionHost and NewConnectionAllowed properties."
+        )]
         [PSObject[]]$Servers
     )
 
@@ -87,7 +93,7 @@ function Select-Server {
     do {
         $rawInput = Read-Host "Select one or more Remote Desktop Session Hosts to toggle"
         $indices = $rawInput -split ',' | ForEach-Object { [int]($_.Trim()) - 1 }
-    } until ($indices | ForEach-Object { $_ -ge 0 -and $_ -le $Servers.Count })
+    } until (($indices | Where-Object { $_ -lt 0 -or $_ -ge $Servers.Count }).Count -eq 0)
 
     return $indices | ForEach-Object { $Servers[$_] }
 }
@@ -135,7 +141,7 @@ function Set-RDSessionHostMode {
         throw "Could not resolve $ConnectionBroker"
     }
     Write-Host "Testing connection to $ConnectionBrokerFQDN..." -ForegroundColor Cyan
-    if (-not (Test-Connection -TargetName $ConnectionBrokerFQDN -Count 1 -Quiet)) {
+    if (-not (Test-Connection -ComputerName $ConnectionBrokerFQDN -Count 1 -Quiet)) {
         throw "Could not connect to $ConnectionBrokerFQDN"
     }
     Write-Host "Connection to $ConnectionBrokerFQDN verified." -ForegroundColor Green

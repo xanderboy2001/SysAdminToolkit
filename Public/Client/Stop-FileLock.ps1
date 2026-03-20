@@ -12,18 +12,18 @@ function Get-BlockingProcesses {
     .PARAMETER FileName
     The name or path of the file to check for blocking processes.
 
-    .PARAMETER HandleExePath
+    .PARAMETER HandleExe
     The full path to the Handle.exe Sysinternals utility.
 
     .PARAMETER ComputerName
     Optional. The name of the remote computer to run the check on.
     If omitted, the check runs on the local machine.
     .EXAMPLE
-    Get-BlockingProcess -FileName 'report.xlsx' -HandleExePath '\\live.sysinternals.com\tools\handle.exe'
+    Get-BlockingProcess -FileName 'report.xlsx' -HandleExe '\\live.sysinternals.com\tools\handle.exe'
     # Finds processes on the local machine blocking report.xlsx.
 
     .EXAMPLE
-    Get-BlockingProcess -FileName 'data.csv' -HandleExePath 'C:\tools\handle.exe' -ComputerName 'WORKSTATION1'
+    Get-BlockingProcess -FileName 'data.csv' -HandleExe 'C:\tools\handle.exe' -ComputerName 'WORKSTATION1'
     # Finds processes on WORKSTATION1 blocking data.csv.
 
     .OUTPUTS
@@ -38,9 +38,11 @@ function Get-BlockingProcesses {
     [OutputType([pscustomobject[]])]
     param(
         [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
         [string]$FileName,
         [Parameter(Mandatory)]
-        [string]$HandleExePath,
+        [ValidateNotNullOrEmpty()]
+        [string]$HandleExe,
         [string]$ComputerName
     )
 
@@ -53,13 +55,13 @@ function Get-BlockingProcesses {
         $InvokeParams = @{
             ComputerName    = $ComputerName
             ScriptBlock     = $ProcessFinderCommand
-            ArgumentList    = $FileName, $HandleExePath
+            ArgumentList    = $FileName, $HandleExe
             AsJob           = $true
         }
         $job = Invoke-Command @InvokeParams
     }
     else {
-        $job = Start-Job -ScriptBlock $ProcessFinderCommand -ArgumentList $FileName, $HandleExePath
+        $job = Start-Job -ScriptBlock $ProcessFinderCommand -ArgumentList $FileName, $HandleExe
     }
 
     $i = 0
@@ -119,22 +121,22 @@ function Stop-FileLock {
         $FileName = Read-Host "Enter the name of the file being held by a process"
         $ComputerName = Read-Host "Enter the name of the computer to work with (leave blank for local machine)"
 
-        if ($ComputerName -and -not (Test-Connection -TargetName $ComputerName -Quiet -Count 1)) {
+        if ($ComputerName -and -not (Test-Connection -ComputerName $ComputerName -Quiet -Count 1)) {
             throw "Could not connect to $ComputerName"
         }
     }
 
     process {
         if ($ComputerName) {
-            $BlockingParams = {
+            $BlockingParams = @{
                 ComputerName    = $ComputerName
                 FileName        = $FileName
-                HandleExePath   = $handleExe
+                HandleExe   = $handleExe
             }
             $processes = Get-BlockingProcesses @BlockingParams
         }
         else {
-            $processes = Get-BlockingProcesses -FileName $FileName -HandleExePath $handleExe
+            $processes = Get-BlockingProcesses -FileName $FileName -HandleExe $handleExe
         }
 
         if ($processes) {

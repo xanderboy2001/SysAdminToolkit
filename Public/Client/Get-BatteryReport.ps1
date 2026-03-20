@@ -42,7 +42,7 @@ function Get-BatteryReport {
             $ComputerName = Read-Host "Enter the name of a computer"
         }
 
-        if (-not (Test-Connection -TargetName $ComputerName -Count 1 -Quiet)) {
+        if (-not (Test-Connection -ComputerName $ComputerName -Count 1 -Quiet)) {
             throw "Could not establish a connection to $ComputerName"
         }
     }
