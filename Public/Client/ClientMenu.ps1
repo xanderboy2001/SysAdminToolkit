@@ -19,22 +19,26 @@ function Show-ClientMenu {
     $menuOptions = @(
         'Unlock a file being held by a process'
         'Get battery report of all computers'
+        "Open a Printer's Web Interface"
     )
     $result = Show-Menu -Title 'Client Menu' -Options $menuOptions
 
     if ($result.Quit) {
-        return 
+        return
     }
     if ($result.Back) {
-        Start-ToolkitMenu 
+        Start-ToolkitMenu
     }
 
     switch ($result.Index) {
         0 {
-            Stop-FileLock 
+            Stop-FileLock
         }
         1 {
             Get-BatteryReport
+        }
+        2 {
+            Open-PrinterWebInterface
         }
     }
 }
