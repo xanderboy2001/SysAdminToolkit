@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "prepare": "husky"
+    "prepare": "husky",
+    "lint:md": "markdownlint **/*.md --ignore node_modules"
   },
   "repository": {
     "type": "git",
@@ -22,6 +23,8 @@
   "devDependencies": {
     "@commitlint/cli": "^20.5.3",
     "@commitlint/config-conventional": "^20.5.3",
-    "husky": "^9.1.7"
+    "husky": "^9.1.7",
+    "markdownlint-cli": "^0.48.0",
+    "standard-version": "^9.5.0"
   }
 }
