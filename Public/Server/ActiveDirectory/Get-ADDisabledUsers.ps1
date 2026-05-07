@@ -1,6 +1,6 @@
-function Get-ExcludedOUPaths {
+﻿function Get-ExcludedOUPaths {
     [OutputType([string[]])]
-    
+
     $OUPattern = '^((OU=[^,]+,)+)(DC=[^,]+,DC=[^,]+)$'
 
     do {
@@ -26,8 +26,7 @@ function Get-ExcludedOUPaths {
         if ($Exclusions.Count -eq 0) {
             Write-Warning "No input provided. Please enter at lease one OU path."
             $AllValid = $false
-        }
-        else {
+        } else {
             foreach ($OU in $Exclusions) {
                 if ($OU -notmatch $OUPattern) {
                     Write-Warning "'$OU' is an invalid OU path format."
@@ -59,11 +58,12 @@ function Get-ADDisabledUsers {
         Filter = "Enabled -eq 'False'"
     }
 
-    if ($SearchBase) { $GetADUserParams["SearchBase"] = $SearchBase }
+    if ($SearchBase) {
+        $GetADUserParams["SearchBase"] = $SearchBase
+    }
 
     Get-ADUser @GetADUserParams | Where-Object {
         $dn = $_.DistinguishedName
         -not ($Exclusions | Where-Object { $dn -like "*,$_" })
     }
-
 }

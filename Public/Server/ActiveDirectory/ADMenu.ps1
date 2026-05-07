@@ -1,4 +1,4 @@
-function Show-ADMenu {
+﻿function Show-ADMenu {
     <#
     .SYNOPSIS
     Displays the Active Directory submenu in the SysAdmin Toolkit.
@@ -28,24 +28,24 @@ function Show-ADMenu {
     $result = Show-Menu -Title 'Active Directory Menu' -Options $menuOptions
 
     if ($result.Quit) {
-        return 
+        return
     }
     if ($result.Back) {
-        Show-ServerMenu 
+        Show-ServerMenu
     }
 
     switch ($result.Index) {
         0 {
-            Invoke-ADPasswordReset 
+            Invoke-ADPasswordReset
         }
         1 {
-            Invoke-ADAccountUnlock 
+            Invoke-ADAccountUnlock
         }
         2 {
-            Invoke-ADAccountDisable 
+            Invoke-ADAccountDisable
         }
         3 {
-            Invoke-ADSync 
+            Invoke-ADSync
         }
         4 {
             Get-ADDisabledUsers

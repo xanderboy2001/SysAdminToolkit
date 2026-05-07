@@ -40,14 +40,12 @@ If locked, the script will prompt for confirmation before unlocking the account.
                 try {
                     Unlock-ADAccount -Identity $username
                     Write-Host "$username has been unlocked" -ForegroundColor Green
-                }
-                catch {
+                } catch {
                     Write-Error "Failed to unlock ${username}: $($_.Exception.Message)"
                 }
             }
         }
-    }
-    else {
+    } else {
         Write-Warning "$username is not locked"
     }
 }

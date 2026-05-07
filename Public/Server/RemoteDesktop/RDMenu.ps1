@@ -1,4 +1,4 @@
-function Show-RDMenu {
+﻿function Show-RDMenu {
     <#
     .SYNOPSIS
     Displays the Remote Desktop menu in the SysAdmin Toolkit.
@@ -11,7 +11,7 @@ function Show-RDMenu {
     .EXAMPLE
     Show-RDMenu
     # Displays the Remote Desktop menu and waits for the user to select an option.
-    
+
     .NOTES
     Author: Alexander Christian
     #>
@@ -25,20 +25,20 @@ function Show-RDMenu {
     $result = Show-Menu -Title 'Remote Desktop Menu' -Options $menuOptions
 
     if ($result.Quit) {
-        return 
+        return
     }
     if ($result.Back) {
-        Show-ServerMenu 
+        Show-ServerMenu
     }
 
     $brokerServer = (Get-ToolkitConfig).RDBrokerServer
 
     switch ($result.Index) {
         0 {
-            Restart-RDSBroker -BrokerServer $brokerServer 
+            Restart-RDSBroker -BrokerServer $brokerServer
         }
         1 {
-            Set-RDSessionHostMode -ConnectionBroker $brokerServer 
+            Set-RDSessionHostMode -ConnectionBroker $brokerServer
         }
     }
 }

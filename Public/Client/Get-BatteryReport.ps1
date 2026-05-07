@@ -1,4 +1,4 @@
-function Get-BatteryReport {
+﻿function Get-BatteryReport {
     <#
     .SYNOPSIS
     Retrieves battery capacity data from a single computer.
@@ -18,7 +18,7 @@ function Get-BatteryReport {
     .EXAMPLE
     Get-BatteryReport -ComputerName 'PC-1234'
     # Returns battery capacity data for PC-1234.
-    
+
     .EXAMPLE
     Get-BatteryReport
     # Prompts for a computer name and returns battery capacity data.
@@ -72,8 +72,7 @@ function Get-BatteryReport {
                     FullChargeCapacity = [int]$battery.FullChargeCapacity
                     CapacityPercent = $capacityPercent
                 }
-            }
-            catch {
+            } catch {
                 Write-Warning "Error on '$env:COMPUTERNAME': $($_.Exception.Message)"
                 [pscustomobject]@{
                     ComputerName = $env:COMPUTERNAME

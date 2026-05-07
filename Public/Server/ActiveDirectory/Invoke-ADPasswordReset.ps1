@@ -1,4 +1,4 @@
-function Invoke-ADPasswordReset {
+﻿function Invoke-ADPasswordReset {
     <#
     .SYNOPSIS
     Resets the password for an Active Directory user account.
@@ -11,7 +11,7 @@ function Invoke-ADPasswordReset {
     .EXAMPLE
     Invoke-ADPasswordReset
     # Prompts for a username, requests confirmation, then resets the account password.
-    
+
     .NOTES
     Author: Alexander Christian
     #>
@@ -39,8 +39,7 @@ The password will be read as a SecureString
                     Unlock-ADAccount -Identity $username -ErrorAction SilentlyContinue
                     Write-Host "Password successfully reset for $username" -ForegroundColor Green
                 }
-            }
-            catch {
+            } catch {
                 Write-Error "Failed to reset password: $($_.Exception.Message)"
             }
         }

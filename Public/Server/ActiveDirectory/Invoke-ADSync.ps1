@@ -1,4 +1,4 @@
-
+﻿
 function Invoke-ADSync {
     <#
     .SYNOPSIS
@@ -13,7 +13,7 @@ function Invoke-ADSync {
     .EXAMPLE
     Invoke-ADSync
     # Triggers a delta AD sync on the configured AD Connect server and waits for completion.
-    
+
     .NOTES
     Author: Alexander Christian
     Requires the ADSync module to be installed on the target AD Connect server.
@@ -32,8 +32,7 @@ function Invoke-ADSync {
 
     try {
         $ADConnectServerResolved = [System.Net.Dns]::GetHostByName($ADConnectServer).HostName
-    }
-    catch [System.Net.Sockets.SocketException] {
+    } catch [System.Net.Sockets.SocketException] {
         throw "Could not resolve hostname '$ADConnectServer': $($_.Exception.Message)"
     }
     Write-Verbose "Verifying connection to $ADConnectServerResolved..."
@@ -60,8 +59,7 @@ function Invoke-ADSync {
             } while ((Get-ADSyncConnectorRunStatus).RunState -eq 'Busy')
             Write-Host "`nAD Sync complete" -ForegroundColor Green
         } -ErrorAction Stop | Out-Null
-    }
-    catch {
+    } catch {
         Write-Error "Fatal error during AD Delta Sync: $($_.Exception.Message)"
         return
     }

@@ -1,4 +1,4 @@
-function Show-ConfigMenu {
+﻿function Show-ConfigMenu {
     <#
     .SYNOPSIS
     Displays the Configuration menu in the SysAdmin Toolkit.
@@ -25,21 +25,21 @@ function Show-ConfigMenu {
     $result = Show-Menu -Title 'Configuration' -Options $menuOptions
 
     if ($result.Quit) {
-        return 
+        return
     }
     if ($result.Back) {
-        Start-ToolkitMenu 
+        Start-ToolkitMenu
     }
 
     switch ($result.Index) {
         0 {
-            Invoke-ViewConfig 
+            Invoke-ViewConfig
         }
         1 {
-            Invoke-EditConfig 
+            Invoke-EditConfig
         }
         2 {
-            Invoke-ResetConfig 
+            Invoke-ResetConfig
         }
     }
 }
@@ -98,10 +98,9 @@ function Invoke-EditConfig {
         $keys = [string[]]($config.Keys | Sort-Object)
         $options = $keys | ForEach-Object {
             $value = if ($config[$_] -eq '') {
-                '(not set)' 
-            }
-            else {
-                $config[$_] 
+                '(not set)'
+            } else {
+                $config[$_]
             }
             "$_ : $value"
         }
@@ -109,7 +108,7 @@ function Invoke-EditConfig {
         $result = Show-Menu -Title 'Edit Configuration' -Options $options
 
         if ($result.Quit) {
-            return 
+            return
         }
         if ($result.Back) {
             Show-ConfigMenu
@@ -119,28 +118,25 @@ function Invoke-EditConfig {
         $key = $keys[$result.Index]
         $currentValue = $config[$key]
         $displayValue = if ($currentValue -eq '') {
-            '(not set)' 
-        }
-        else {
-            $currentValue 
+            '(not set)'
+        } else {
+            $currentValue
         }
 
         $newValue = Read-Host "New value for '$key' (current: $displayValue, leave blank to cancel)"
 
         if ($newValue -eq '') {
-            continue 
+            continue
         }
 
         if ($currentValue -is [int]) {
             if ($newValue -match '^\d+$') {
                 $config[$key] = [int]$newValue
-            }
-            else {
+            } else {
                 Write-Host "'$key' requires an integer value." -ForegroundColor Red
                 continue
             }
-        }
-        else {
+        } else {
             $config[$key] = $newValue
         }
 

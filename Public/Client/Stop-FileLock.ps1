@@ -1,4 +1,4 @@
-function Get-BlockingProcesses {
+﻿function Get-BlockingProcesses {
     <#
     .SYNOPSIS
     Returns a list of processes currently holding a lock on the specified file.
@@ -59,8 +59,7 @@ function Get-BlockingProcesses {
             AsJob           = $true
         }
         $job = Invoke-Command @InvokeParams
-    }
-    else {
+    } else {
         $job = Start-Job -ScriptBlock $ProcessFinderCommand -ArgumentList $FileName, $HandleExe
     }
 
@@ -90,7 +89,7 @@ function Stop-FileLock {
     .DESCRIPTION
     Prompts for filename and an optional remote computer name, then uses Handl.exe to identify any processes
     with an open handle on that file. If blocking processes are found, they are listed and the user is prompted
-    to confirm before each is forcibly terminated with Stop-Process. The Sysinternals path is read from the 
+    to confirm before each is forcibly terminated with Stop-Process. The Sysinternals path is read from the
     toolkit configuration via Get-ToolkitConfig.
 
     .PARAMETER FileName
@@ -134,8 +133,7 @@ function Stop-FileLock {
                 HandleExe   = $handleExe
             }
             $processes = Get-BlockingProcesses @BlockingParams
-        }
-        else {
+        } else {
             $processes = Get-BlockingProcesses -FileName $FileName -HandleExe $handleExe
         }
 
@@ -143,7 +141,7 @@ function Stop-FileLock {
             $processes | ForEach-Object { Write-Host "Found process $($_.Process) ($($_.PID))" }
             $confirmation = Read-Host "End the processes? [Y/n]"
             if ($confirmation -and $confirmation -notlike 'y') {
-                return 
+                return
             }
             $processes | ForEach-Object {
                 $processName = $_.Process
@@ -152,14 +150,12 @@ function Stop-FileLock {
                     Write-Host "Ending process $processName ($processPID)..." -ForegroundColor Yellow
                     Stop-Process -Id $processPID -Force -ErrorAction Stop
                     Write-Host "Ended process $processName ($processPID)" -ForegroundColor Yellow
-                }
-                catch {
+                } catch {
                     throw "Fatal error when ending process $processName ($processPID): $($_.Exception.Message)"
                 }
             }
             Write-Host "Ended all processes holding $FileName" -ForegroundColor Green
-        }
-        else {
+        } else {
             Write-Host "No processes found."
         }
     }

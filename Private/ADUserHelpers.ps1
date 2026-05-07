@@ -1,4 +1,4 @@
-function Convert-UsernameFormat {
+﻿function Convert-UsernameFormat {
     <#
     .SYNOPSIS
     Normalizes a username string to lowercase and strips any email domain suffix.
@@ -7,7 +7,7 @@ function Convert-UsernameFormat {
     Converts the input username to lowercase. If the username contains the '@' symbol, everything from the '@'
     onward is removed, leaving only the local-part of the address. This allows email addresses to be passed in
     and treated as plain usernames.
-    
+
     .PARAMETER Username
     The raw username or email address string to normalize.
 
@@ -18,7 +18,7 @@ function Convert-UsernameFormat {
     .EXAMPLE
     Convert-UsernameFormat -Username 'JDOE'
     # Returns 'jdoe'
-    
+
     .OUTPUTS
     System.String. The normalized username.
 
@@ -178,8 +178,7 @@ function Get-ValidADUser {
             try {
                 $userAccount = Get-ADUser -Identity $username -ErrorAction Stop
                 return $userAccount
-            }
-            catch {
+            } catch {
                 Write-Warning "No Active Directory user found with username '$username'."
                 Write-Host 'Please try again.' -ForegroundColor Yellow
             }
@@ -189,8 +188,7 @@ function Get-ValidADUser {
 
             try {
                 $userAccount = Get-ADUser -Filter "Name -eq '$username'" -ErrorAction Stop
-            }
-            catch {
+            } catch {
                 Write-Host "No Active Directory user found with name '$username'." -ForegroundColor Red
                 Write-Host 'Please try again.' -ForegroundColor Yellow
                 continue

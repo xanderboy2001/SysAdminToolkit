@@ -1,4 +1,4 @@
-function Select-RDSessionCollection {
+﻿function Select-RDSessionCollection {
     <#
     .SYNOPSIS
     Prompts the user to select a Remote Desktop session collection from a list.
@@ -14,7 +14,7 @@ function Select-RDSessionCollection {
     .EXAMPLE
     $collection = Select-RDSessionCollection -Collection @('desktops', 'apps')
     # Displays a numbered list and returns the name of the collection the user selects.
-    
+
     .OUTPUTS
     System.String. The name of the selected session collection.
 
@@ -34,7 +34,7 @@ function Select-RDSessionCollection {
     for ($i = 0; $i -lt $Collections.Count; $i++) {
         Write-Host "[$($i + 1)] $($Collections[$i])"
     }
-    
+
     do {
         $SelectedIndex = Read-Host "Select a Remote Desktop Server Collection to manage (1-$($Collections.Count))"
         $SelectedIndex = $SelectedIndex - 1
@@ -62,7 +62,7 @@ function Select-Server {
     .EXAMPLE
     $selected = Select-Server -Servers $sessionHosts
     # Displays the session host list and returns the objects the user selected.
-    
+
     .OUTPUTS
     System.Object[]. The selected session host objects.
 
@@ -84,8 +84,7 @@ function Select-Server {
         "$($Servers[$i].NewConnectionAllowed))"
         if ($Servers[$i].NewConnectionAllowed) {
             Write-Host $msg -ForegroundColor Green
-        }
-        else {
+        } else {
             Write-Host $msg -ForegroundColor Red
         }
     }
@@ -116,11 +115,11 @@ function Set-RDSessionHostMode {
     .EXAMPLE
     Set-RDSessionHostMode -ConnectionBroker 'broker01'
     # Connects to broker01 and walks through collection and host selection interactively.
-    
+
     .EXAMPLE
     Set-RDSessionHostMode
     # Prompts for the Connection Broker name, then proceeds interactively.
-    
+
     .NOTES
     Author: Alexander Christian
     #>
@@ -132,12 +131,11 @@ function Set-RDSessionHostMode {
     if (-not $ConnectionBroker) {
         $ConnectionBroker = Read-Host "Enter the name of one of the connection brokers"
     }
-    
+
     try {
         $ConnectionBrokerFQDN = [System.Net.Dns]::GetHostByName($ConnectionBroker).HostName
         Write-Host "Resolved '$ConnectionBroker' to '$ConnectionBrokerFQDN'" -ForegroundColor DarkGray
-    }
-    catch {
+    } catch {
         throw "Could not resolve $ConnectionBroker"
     }
     Write-Host "Testing connection to $ConnectionBrokerFQDN..." -ForegroundColor Cyan
@@ -145,7 +143,7 @@ function Set-RDSessionHostMode {
         throw "Could not connect to $ConnectionBrokerFQDN"
     }
     Write-Host "Connection to $ConnectionBrokerFQDN verified." -ForegroundColor Green
-    
+
     try {
         Write-Host "Getting list of Remote Desktop Server Collections..." -ForegroundColor Cyan
         $ServerCollections = (
@@ -153,14 +151,12 @@ function Set-RDSessionHostMode {
                 Where-Object { $_.ResourceType -eq 'Remote Desktop' } |
                 Select-Object -ExpandProperty CollectionName
         ).toLower()
-    }
-    catch {
+    } catch {
         throw "Error when getting list of Remote Desktop Server Collections: $($_.Exception.Message)"
     }
     if ($ServerCollections) {
         Write-Host "Found $($ServerCollections.Count) server collections." -ForegroundColor Green
-    }
-    else {
+    } else {
         throw "Could not find any server collections"
     }
 
@@ -178,10 +174,9 @@ function Set-RDSessionHostMode {
             Name="NewConnectionAllowed"
             Expression= {
                 if ($_.NewConnectionAllowed -eq 'Yes') {
-                    $true 
-                }
-                else {
-                    $false 
+                    $true
+                } else {
+                    $false
                 }
             }
         }
@@ -193,8 +188,7 @@ function Set-RDSessionHostMode {
         $Servers = Get-RDSessionHost @SessionHostParams |
             Select-Object -Property $SessionHostProperty, $NewConnectionAllowedProperty |
             Sort-Object { [regex]::Replace($_.SessionHost, '\d+', { $args[0].Value.PadLeft(20) }) }
-    }
-    catch {
+    } catch {
         throw "Error when getting list of Remote Desktop Session Hosts in ${SelectedCollection}: " +
         "$($_.Exception.Message)"
     }
@@ -205,13 +199,12 @@ function Set-RDSessionHostMode {
 
         Write-Host "Found $($EnabledServers.Count) enabled servers." -ForegroundColor DarkGray
         Write-Host "Found $($DisabledServers.Count) disabled servers." -ForegroundColor DarkGray
-    }
-    else {
+    } else {
         throw "Could not find any Remote Desktop Session Hosts in $SelectedCollection"
     }
 
     $SelectedServers = Select-Server -Servers $Servers
-    
+
     foreach ($server in $SelectedServers) {
         if ($server.NewConnectionAllowed) {
             try {
@@ -225,12 +218,10 @@ function Set-RDSessionHostMode {
                 }
                 Set-RDSessionHost @SetRDHostParams
                 Write-Host "Disabled new connections on $($server.SessionHost)" -ForegroundColor Green
-            }
-            catch {
+            } catch {
                 throw "Error when disabling new connections on $($server.SessionHost): $($_.Exception.Message)"
             }
-        }
-        else {
+        } else {
             try {
                 $msg = "New Connections are disabled on $($server.SessionHost). Enabling new connections..."
                 Write-Host $msg -ForegroundColor Cyan
@@ -242,8 +233,7 @@ function Set-RDSessionHostMode {
                 }
                 Set-RDSessionHost @SetRDHostParams
                 Write-Host "Enabled new connections on $($server.SessionHost)" -ForegroundColor Green
-            }
-            catch {
+            } catch {
                 throw "Error while enabling new connections on $($server.SessionHost): $($_.Exception.Message)"
             }
         }

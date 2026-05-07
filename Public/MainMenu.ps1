@@ -1,4 +1,4 @@
-function Start-ToolkitMenu {
+﻿function Start-ToolkitMenu {
     <#
     .SYNOPSIS
     Displays the main menu for the SysAdmin Toolkit.
@@ -27,13 +27,13 @@ function Start-ToolkitMenu {
 
         switch ($result.Index) {
             0 {
-                Show-ServerMenu; return 
+                Show-ServerMenu; return
             }
             1 {
-                Show-ClientMenu; return 
+                Show-ClientMenu; return
             }
             2 {
-                Show-ConfigMenu; return 
+                Show-ConfigMenu; return
             }
         }
     } while ($true)

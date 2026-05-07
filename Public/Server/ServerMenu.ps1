@@ -1,4 +1,4 @@
-function Show-ServerMenu {
+﻿function Show-ServerMenu {
     <#
     .SYNOPSIS
     Displays the Server menu in the SysAdmin Toolkit.
@@ -24,18 +24,18 @@ function Show-ServerMenu {
     $result = Show-Menu -Title 'Server Menu' -Options $menuOptions
 
     if ($result.Quit) {
-        return 
+        return
     }
     if ($result.Back) {
-        Start-ToolkitMenu 
+        Start-ToolkitMenu
     }
 
     switch ($result.Index) {
         0 {
-            Show-ADMenu 
+            Show-ADMenu
         }
         1 {
-            Show-RDMenu 
+            Show-RDMenu
         }
         2 {
             Show-TroubleshootingMenu

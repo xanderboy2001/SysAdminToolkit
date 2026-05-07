@@ -1,4 +1,4 @@
-$script:ConfigPath = Join-Path -Path "C:\ProgramData" -ChildPath "SysAdminToolkit\Config\config.psd1"
+﻿$script:ConfigPath = Join-Path -Path "C:\ProgramData" -ChildPath "SysAdminToolkit\Config\config.psd1"
 $script:DefaultConfigPath = Join-Path $script:ModuleRoot "Config\config.defaults.psd1"
 
 function Initialize-ToolkitConfig {
@@ -37,8 +37,7 @@ function Initialize-ToolkitConfig {
             }
         }
         $script:ToolkitConfig = $existing
-    }
-    else {
+    } else {
         $configDir = Split-Path $script:ConfigPath
         if (-not (Test-Path $configDir)) {
             New-Item -ItemType Directory -Path $configDir | Out-Null
@@ -65,7 +64,7 @@ function Get-ToolkitConfig {
 
     .OUTPUTS
     System.Collections.Hashtable. The current toolkit configuration.
-    
+
     .NOTES
     Author: Alexander Christian
     #>
@@ -109,14 +108,13 @@ function Save-ToolkitConfig {
         $value = $Config[$key]
         if ($value -is [int]) {
             $lines += "`t$key = $value`n"
-        }
-        else {
+        } else {
             $escaped = ($value -as [string]) -replace "'", "''"
             $lines += "`t$key = '$escaped'`n"
         }
     }
     $lines += '}'
-    
+
     if ($PSCmdlet.ShouldProcess($script:ConfigPath, 'Write toolkit configuration')) {
         Set-Content -Path $script:ConfigPath -Value $lines -Encoding UTF8
         $script:ToolkitConfig = $Config

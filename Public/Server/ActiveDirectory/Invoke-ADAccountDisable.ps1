@@ -1,8 +1,8 @@
-function Invoke-ADAccountDisable {
+﻿function Invoke-ADAccountDisable {
     <#
     .SYNOPSIS
     Disables an Active Directory user account.
-    
+
     .DESCRIPTION
     Prompts for a valid Active Directory username and disables the corresponding account.
     Uses Get-ValidADUser to resolve and validate the account before calling Disable-ADAccount.
@@ -30,8 +30,7 @@ function Invoke-ADAccountDisable {
                 Disable-ADAccount -Identity $username -ErrorAction Stop
                 Write-Host "Disabled AD account for $username ($($userAccount.Name))"
             }
-        }
-        catch {
+        } catch {
             $msg = "Failed to disable AD account for $username ($($userAccount.Name)): $($_.Exception.Message)"
             Write-Error $msg
         }
