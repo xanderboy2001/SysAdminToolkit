@@ -1,4 +1,3 @@
-
 # SysAdmin Toolkit
 
 [![GitHub issues](https://img.shields.io/github/issues/xanderboy2001/SysAdminToolkit?style=for-the-badge)](https://github.com/xanderboy2001/SysAdminToolkit/issues)
@@ -25,7 +24,7 @@
 
 ## About The Project
 
-The **SysAdmin Toolkit** is a PowerShell-based module meant to streamline administrative tasks by offering a menu-driven interface. It contains utilities for both *server* and *client* operations, with menus for Active Directory, and future extensions. The goal is to provide a clean, navigable toolkit for sysadmins to run scripts without memorizing commands.
+The **SysAdmin Toolkit** is a PowerShell-based module meant to streamline administrative tasks by offering a menu-driven interface. It contains utilities for both _server_ and _client_ operations, with menus for Active Directory, and future extensions. The goal is to provide a clean, navigable toolkit for sysadmins to run scripts without memorizing commands.
 
 ---
 
@@ -51,11 +50,14 @@ Make sure you have:
 ### Installation
 
 1. Clone this repository:
+
    ```bash
    git clone https://github.com/xanderboy2001/SysAdminToolkit.git
    ```
+
 2. Ensure the folder structure remains:
-   ```
+
+   ```powershell
    SysAdminToolkit/
       SysAdminToolkit.psd1
       SysAdminToolkit.psm1
@@ -64,12 +66,16 @@ Make sure you have:
       Private/
          ... (helper scripts, utils)
    ```
+
 3. (Recommended) Copy the folder into your personal PowerShell modules directory:
+
    ```powershell
    $dest = Join-Path $HOME 'Documents/PowerShell/Modules/SysAdminToolkit'
    Copy-Item -Recurse -Path 'C:/path/to/downloaded/SysAdminToolkit' -Destination $dest
    ```
+
 4. Import the module in PowerShell:
+
    ```powershell
    Import-Module SysAdminToolkit -Force
    ```
@@ -79,7 +85,9 @@ Make sure you have:
    ```powershell
    Import-Module 'C:/full/path/to/SysAdminToolkit' -Force
    ```
+
 5. Launch the toolkit menu:
+
    ```powershell
    Start-ToolkitMenu
    ```
@@ -91,8 +99,8 @@ Make sure you have:
 When you run `Start-ToolkitMenu`, you will see a top-level menu. Options include:
 
 - **Server** - Opens the server tools menu:
-   - **Active Directory** - Tools for password reset, account unlock, disable user, create user
-   - (Other submodules planned, e.g. Troubleshooting)
+  - **Active Directory** - Tools for password reset, account unlock, disable user, create user
+  - (Other submodules planned, e.g. Troubleshooting)
 - **Client** - Reserved for future client‑side utilities (e.g. local user management, workstation scripts)
 
 Select menu options using the number keys (e.g. `1` for Server), or use `Q`, `Quit`, `E`, `Exit`, `C`, `Cancel` to exit. Use `B`, `Back` when prompted to return to the previous menu.
@@ -139,7 +147,7 @@ Distributed under the **[GNU General Public License v3.0]**. See [LICENSE.md](LI
 
 ## Contact
 
-- **Alexander Christian** — alexanderechristian@gmail.com
+- **Alexander Christian** — <alexanderechristian@gmail.com>
 - **SysAdminToolkit**: [https://github.com/xanderboy2001/SysAdminToolkit](https://github.com/xanderboy2001/SysAdminToolkit)
 
 ---
