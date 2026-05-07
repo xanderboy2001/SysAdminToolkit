@@ -4,7 +4,7 @@ function Show-ClientMenu {
     Displays the Client menu in the SysAdmin Toolkit.
 
     .DESCRIPTION
-    Shows client-related options such as unlcoking a file held open by a process.
+    Shows client-related options such as unlocking a file held open by a process.
     Handles user input and navigates to the appropriate function or returns to the main menu if requested.
 
     .EXAMPLE
