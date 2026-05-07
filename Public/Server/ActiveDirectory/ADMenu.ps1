@@ -22,6 +22,7 @@ function Show-ADMenu {
         'Unlock Account'
         'Disable User'
         'Start AD Sync'
+        'Get Disabled Users'
     )
 
     $result = Show-Menu -Title 'Active Directory Menu' -Options $menuOptions
@@ -45,6 +46,9 @@ function Show-ADMenu {
         }
         3 {
             Invoke-ADSync 
+        }
+        4 {
+            Get-ADDisabledUsers
         }
     }
 }
