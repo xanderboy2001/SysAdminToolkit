@@ -38,7 +38,7 @@ function Show-ServerMenu {
             Show-RDMenu 
         }
         2 {
-            Write-Host 'Troubleshooting menu not yet implemented' -ForegroundColor Cyan 
+            Show-TroubleshootingMenu
         }
     }
 }
