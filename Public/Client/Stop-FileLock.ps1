@@ -1,4 +1,4 @@
-﻿function Get-BlockingProcesses {
+function Get-BlockingProcesses {
     <#
     .SYNOPSIS
     Returns a list of processes currently holding a lock on the specified file.
@@ -115,7 +115,7 @@ function Stop-FileLock {
 
     begin {
         $sysinternalsPath = (Get-ToolkitConfig).SysinternalsPath
-        $handleExe = Join-Path $sysinternalsPath "handle.exe"
+        $handleExe = Join-Path $sysinternalsPath "handle"
 
         $FileName = Read-Host "Enter the name of the file being held by a process"
         $ComputerName = Read-Host "Enter the name of the computer to work with (leave blank for local machine)"
