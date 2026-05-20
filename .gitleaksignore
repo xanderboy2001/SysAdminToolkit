@@ -1,0 +1,2 @@
+# Format: [filepath]:[fingerprint]
+# You get the fingerprint from the gitleaks output if it fails

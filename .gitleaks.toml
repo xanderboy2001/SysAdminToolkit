@@ -1,0 +1,20 @@
+# .gitleaks.toml
+
+[allowlist]
+description = "Global allowlist to prevent false positives"
+paths = [
+  '''node_modules''',
+  '''LICENSE''',
+  '''package-lock.json''',
+  '''\.gitleaksignore''',
+]
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "generic-ps-secret"
+description = "Detects potential secrets in PowerShell variables"
+regex = '''(?i)(password|passwd|pwd|secret|key|token|apikey)\s*[:=]\s*["']([^"']+)["']'''
+entropy = 3.5
+keywords = ["password", "secret", "token"]
