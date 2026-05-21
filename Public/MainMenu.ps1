@@ -1,4 +1,4 @@
-﻿function Start-ToolkitMenu {
+function Start-ToolkitMenu {
     <#
     .SYNOPSIS
     Displays the main menu for the SysAdmin Toolkit.

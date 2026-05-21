@@ -1,4 +1,4 @@
-﻿function Select-RDSessionCollection {
+function Select-RDSessionCollection {
     <#
     .SYNOPSIS
     Prompts the user to select a Remote Desktop session collection from a list.

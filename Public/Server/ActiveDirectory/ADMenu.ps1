@@ -1,4 +1,4 @@
-﻿function Show-ADMenu {
+function Show-ADMenu {
     <#
     .SYNOPSIS
     Displays the Active Directory submenu in the SysAdmin Toolkit.

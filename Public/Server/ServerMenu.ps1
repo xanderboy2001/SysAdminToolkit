@@ -1,4 +1,4 @@
-﻿function Show-ServerMenu {
+function Show-ServerMenu {
     <#
     .SYNOPSIS
     Displays the Server menu in the SysAdmin Toolkit.

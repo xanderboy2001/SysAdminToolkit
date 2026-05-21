@@ -1,4 +1,4 @@
-﻿function Invoke-ADPasswordReset {
+function Invoke-ADPasswordReset {
     <#
     .SYNOPSIS
     Resets the password for an Active Directory user account.

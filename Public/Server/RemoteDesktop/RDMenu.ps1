@@ -1,4 +1,4 @@
-﻿function Show-RDMenu {
+function Show-RDMenu {
     <#
     .SYNOPSIS
     Displays the Remote Desktop menu in the SysAdmin Toolkit.

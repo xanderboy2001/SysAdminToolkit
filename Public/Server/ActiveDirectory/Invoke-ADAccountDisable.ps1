@@ -1,4 +1,4 @@
-﻿function Invoke-ADAccountDisable {
+function Invoke-ADAccountDisable {
     <#
     .SYNOPSIS
     Disables an Active Directory user account.

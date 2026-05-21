@@ -1,4 +1,4 @@
-﻿function Get-BatteryReport {
+function Get-BatteryReport {
     <#
     .SYNOPSIS
     Retrieves battery capacity data from a single computer.

@@ -1,4 +1,4 @@
-﻿$script:ConfigPath = Join-Path -Path "C:\ProgramData" -ChildPath "SysAdminToolkit\Config\config.psd1"
+$script:ConfigPath = Join-Path -Path "C:\ProgramData" -ChildPath "SysAdminToolkit\Config\config.psd1"
 $script:DefaultConfigPath = Join-Path $script:ModuleRoot "Config\config.defaults.psd1"
 
 function Initialize-ToolkitConfig {

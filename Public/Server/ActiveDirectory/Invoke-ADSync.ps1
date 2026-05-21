@@ -1,4 +1,4 @@
-﻿
+
 function Invoke-ADSync {
     <#
     .SYNOPSIS

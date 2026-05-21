@@ -1,4 +1,4 @@
-﻿function Convert-UsernameFormat {
+function Convert-UsernameFormat {
     <#
     .SYNOPSIS
     Normalizes a username string to lowercase and strips any email domain suffix.

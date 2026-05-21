@@ -1,4 +1,4 @@
-﻿function Show-ConfigMenu {
+function Show-ConfigMenu {
     <#
     .SYNOPSIS
     Displays the Configuration menu in the SysAdmin Toolkit.
