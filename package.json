@@ -6,7 +6,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "prepare": "husky",
-    "lint:md": "markdownlint **/*.md --ignore node_modules --ignore LICENSE.md"
+    "lint:md": "markdownlint **/*.md --ignore node_modules --ignore LICENSE.md",
+    "build:docs": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/Update-Docs.ps1"
   },
   "repository": {
     "type": "git",
@@ -24,7 +25,16 @@
     "@commitlint/cli": "^20.5.3",
     "@commitlint/config-conventional": "^20.5.3",
     "husky": "^9.1.7",
+    "lint-staged": "^17.0.5",
     "markdownlint-cli": "^0.48.0",
     "standard-version": "^9.5.0"
+  },
+  "lint-staged": {
+    "*.md": "markdownlint",
+    "*.{ps1,psm1}": [
+      "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\\Invoke-PSLint.ps1",
+      "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\\Update-Docs.ps1",
+      "git add docs/"
+    ]
   }
 }
