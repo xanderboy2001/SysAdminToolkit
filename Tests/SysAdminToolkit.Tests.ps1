@@ -7,20 +7,20 @@
 param()
 
 BeforeDiscovery {
-    $script:sourceFiles = Get-ChildItem -Path (Join-Path $PSScriptRoot '..') -Include '*.ps1', '*.psm1', '*.psd1' `
+    $script:sourceFiles = Get-ChildItem -Path (Join-Path $PSscriptRoot '..') -Include '*.ps1', '*.psm1', '*.psd1' `
         -Recurse -File | Where-Object { $_.FullName -notmatch '[\\/]Tests[\\/]' }
 }
 
 BeforeAll {
-    $script:moduleRoot = Join-Path $PSScriptRoot '..'
+    $script:moduleRoot = Join-Path $PSscriptRoot '..'
     $script:manifestPath = Join-Path $script:moduleRoot 'SysAdminToolkit.psd1'
 
     # RemoteDesktop cmdlets are mocked; create stubs when the RemoteDesktop module is not installed (e.g. CI).
-    $rdCommands = @(
+    $script:rdCommands = @(
         'Get-RDServer', 'Get-RDConnectionBrokerHighAvailability', 'Set-RDActiveManagementServer',
         'Get-RDSessionCollection', 'Get-RDSessionHost', 'Set-RDSessionHost', 'Get-RDUserSession'
     )
-    foreach ($commandName in $rdCommands) {
+    foreach ($commandName in $script:rdCommands) {
         if (-not (Get-Command -Name $commandName -ErrorAction SilentlyContinue)) {
             $null = New-Item -Path "function:global:$commandName" -Value {
                 param([Parameter(ValueFromRemainingArguments)]$RemainingArguments)
@@ -33,6 +33,12 @@ BeforeAll {
 
 AfterAll {
     Remove-Module SysAdminToolkit -Force -ErrorAction SilentlyContinue
+    foreach ($commandName in $script:rdCommands) {
+        $stub = Get-Item -Path "function:global:$commandName" -ErrorAction SilentlyContinue
+        if ($stub -and -not $stub.Module) {
+            Remove-Item -Path "function:global:$commandName"
+        }
+    }
 }
 
 Describe 'Source files' {
@@ -327,6 +333,64 @@ Describe 'Get-ValidADUser' {
 
             $user.SamAccountName | Should -Be 'jdoe'
             Should -Invoke Read-Username -Times 2 -Exactly
+        }
+    }
+}
+
+Describe 'Initialize-ToolkitConfig' {
+    It 'reports a corrupt config file clearly and does not overwrite it' {
+        InModuleScope SysAdminToolkit {
+            $originalPath = $script:ConfigPath
+            try {
+                $script:ConfigPath = Join-Path $TestDrive 'config.psd1'
+                Set-Content -LiteralPath $script:ConfigPath -Value 'not a hashtable'
+
+                { Initialize-ToolkitConfig } | Should -Throw '*is not a valid .psd1 file*'
+
+                Get-Content -LiteralPath $script:ConfigPath -Raw | Should -BeLike 'not a hashtable*'
+            } finally {
+                $script:ConfigPath = $originalPath
+            }
+        }
+    }
+
+    It 'creates the file from defaults when it does not exist' {
+        InModuleScope SysAdminToolkit {
+            $originalPath = $script:ConfigPath
+            $originalConfig = $script:ToolkitConfig
+            try {
+                $script:ConfigPath = Join-Path $TestDrive 'new\config.psd1'
+
+                Initialize-ToolkitConfig
+
+                $defaults = Import-PowerShellDataFile -LiteralPath $script:DefaultConfigPath
+                $loaded = Import-PowerShellDataFile -LiteralPath $script:ConfigPath
+                $loaded.Keys.Count | Should -Be $defaults.Keys.Count
+                $loaded.RDMaxRetries | Should -Be $defaults.RDMaxRetries
+            } finally {
+                $script:ConfigPath = $originalPath
+                $script:ToolkitConfig = $originalConfig
+            }
+        }
+    }
+
+    It 'does not rewrite an existing complete config file' {
+        InModuleScope SysAdminToolkit {
+            $originalPath = $script:ConfigPath
+            $originalConfig = $script:ToolkitConfig
+            try {
+                $script:ConfigPath = Join-Path $TestDrive 'existing\config.psd1'
+                Initialize-ToolkitConfig
+                $before = (Get-Item -LiteralPath $script:ConfigPath).LastWriteTimeUtc
+                Start-Sleep -Milliseconds 50
+
+                Initialize-ToolkitConfig
+
+                (Get-Item -LiteralPath $script:ConfigPath).LastWriteTimeUtc | Should -Be $before
+            } finally {
+                $script:ConfigPath = $originalPath
+                $script:ToolkitConfig = $originalConfig
+            }
         }
     }
 }

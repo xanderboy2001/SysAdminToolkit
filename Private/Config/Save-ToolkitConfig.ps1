@@ -46,7 +46,7 @@ function Save-ToolkitConfig {
     $null = $builder.Append("}")
 
     if ($PSCmdlet.ShouldProcess($script:ConfigPath, 'Write toolkit configuration')) {
-        Set-Content -LiteralPath $Script:ConfigPath -Value $builder.ToString() -Encoding utf8 -ErrorAction Stop
+        Set-Content -LiteralPath $script:ConfigPath -Value $builder.ToString() -Encoding utf8 -ErrorAction Stop
         $script:ToolkitConfig = $Config
     }
 }

@@ -1,7 +1,7 @@
 $script:ModuleRoot = $PSScriptRoot
 $script:ConfigPath = Join-Path -Path $env:ProgramData -ChildPath "SysAdminToolkit\Config\config.psd1"
 $script:DefaultConfigPath = Join-Path $script:ModuleRoot "Config\config.defaults.psd1"
-Set-StrictMode -Version Latest
+Set-StrictMode -Version 3.0
 
 # Load private helpers first, then public commands. A file that fails to load fails the import loudly instead
 # of leaving the module half-loaded
