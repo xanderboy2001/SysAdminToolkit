@@ -35,6 +35,7 @@
             CheckPipe       = $true
             CheckSeparator  = $true
             CheckParameter  = $false
+            IgnoreAssignmentOperatorInsideHashTable = $true
         }
         PSAlignAssignmentStatement         = @{
             Enable         = $true
