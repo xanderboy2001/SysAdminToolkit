@@ -1,0 +1,144 @@
+function Restart-RDSBroker {
+    <#
+    .SYNOPSIS
+    Performs a staggered maintenance reboot of all RDS Connection Brokers in a High Availability group.
+
+    .DESCRIPTION
+    Resolves the Connection Broker server, retrieves all broker nodes in the HA group, and performs
+    a controlled reboot sequence:
+
+        1. Identifies the currently active and inactive brokers.
+        2. Reboots each inactive broker and waits for RDS services to come back online.
+        3. Promotes an inactive broker to active via Switch-ActiveBroker.
+        4. Reboots the originally active broker.
+
+    Timeout and retry values are read from the toolkit configuration if not supplied as parameters.
+    The Connection Broker is also read from configuration if not provided.
+
+    .PARAMETER BrokerServer
+    Optional. The hostname or FQDN of any broker in the HA group. If not provided and not set in
+    the toolkit configuration, the user is prompted.
+
+    .PARAMETER TimeoutSecs
+    Optional. Seconds to wait for a broker to respond after reboot. Defaults to the RDTimeoutSecs
+    configuration value if 0 or not supplied.
+
+    .PARAMETER MaxRetries
+    Optional. Maximum number of service polling attempts per broker. Defaults to the RDMaxRetries
+    configuration value if 0 or not supplied.
+
+    .PARAMETER Force
+    Suppresses the confirmation prompt unless -Confirm is also specified.
+
+    .EXAMPLE
+    Restart-RDSBroker -BrokerServer 'broker01' -WhatIf
+    # Resolves the HA group through broker01 and shows the reboot plan without rebooting anything.
+
+    .EXAMPLE
+    Restart-RDSBroker
+    # Reads the broker server from toolkit config, asks for confirmation, then performs the full reboot cycle.
+
+    .NOTES
+    Author: Alexander Christian
+    Requires the RemoteDesktop PowerShell module and WinRM access to all broker servers.
+    #>
+    [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'High')]
+    param(
+        [string]$BrokerServer,
+        [int]$TimeoutSecs,
+        [int]$MaxRetries,
+        [switch]$Force
+    )
+
+    begin {
+        if ($Force -and -not $PSBoundParameters.ContainsKey('Confirm')) {
+            $ConfirmPreference = 'None'
+        }
+        $config = Get-ToolkitConfig
+        if ($TimeoutSecs -eq 0) {
+            $TimeoutSecs = $config.RDTimeoutSecs
+        }
+        if ($MaxRetries -eq 0) {
+            $MaxRetries = $config.RDMaxRetries
+        }
+        if (-not $BrokerServer) {
+            if (-not $config.RDBrokerServer) {
+                $BrokerServer = Read-Host ("Enter the name of one of the " +
+                    "Remote Desktop Connection Broker Servers (e.g. 'broker1')")
+            } else {
+                $BrokerServer = $config.RDBrokerServer
+            }
+        }
+        try {
+            $BrokerServerFQDN = [System.Net.Dns]::GetHostByName($BrokerServer).HostName.ToUpper()
+        } catch [System.Net.Sockets.SocketException] {
+            throw "Could not resolve hostname '$BrokerServer': $($_.Exception.Message)"
+        }
+        Write-Host "Testing connection to $BrokerServerFQDN..." -ForegroundColor Cyan
+        if (-not (Test-Connection -ComputerName $BrokerServerFQDN -Count 1 -Quiet)) {
+            throw "Could not connect to $BrokerServerFQDN"
+        }
+        Write-Host "Connection to $BrokerServerFQDN verified." -ForegroundColor Green
+        try {
+            Write-Host "Getting list of broker servers..." -ForegroundColor Cyan
+            $ServerParams = @{
+                ConnectionBroker    = $BrokerServerFQDN
+                Role                = 'RDS-CONNECTION-BROKER'
+                ErrorAction         = 'Stop'
+            }
+            $BrokerServers = (Get-RDServer @ServerParams).Server
+            Write-Host "Retrieved list of broker servers." -ForegroundColor Green
+        } catch {
+            throw "Failed to get list of broker servers."
+        }
+    }
+
+    process {
+        try {
+            $ActiveBroker = (Get-ActiveBroker -BrokerServers $BrokerServers).ToUpper()
+            $InactiveBrokers = @($BrokerServers | Where-Object { $_ -ne $ActiveBroker })
+
+            Write-Host "Current Active Broker`t: $ActiveBroker" -ForegroundColor DarkGray
+            Write-Host "Inactive Broker(s)`t: $($InactiveBrokers -join ', ')" -ForegroundColor DarkGray
+
+            # Fail closed before any reboot if the HA topology is not what this procedure assumes.
+            if ($ActiveBroker -notin $BrokerServers) {
+                throw "Active broker '$ActiveBroker' is not in the broker list ($($BrokerServers -join ', ')). " +
+                "Refusing to continue because the inactive/active split cannot be trusted."
+            }
+            if ($InactiveBrokers.Count -lt 1) {
+                throw "Only one Connection Broker was found. A staggered reboot requires at least two brokers."
+            }
+
+            $plan = "Reboot $($InactiveBrokers -join ', '), make $($InactiveBrokers[0]) active, " +
+            "then reboot $ActiveBroker"
+            if (-not $PSCmdlet.ShouldProcess($plan, 'Restart RDS Connection Brokers')) {
+                return
+            }
+
+            foreach ($broker in $InactiveBrokers) {
+
+                Write-Host "Beginning reboot-and-wait process for $broker..." -ForegroundColor Cyan
+                Restart-ServerAndWait -ComputerName $broker -TimeoutSecs $TimeoutSecs -MaxRetries $MaxRetries
+                Write-Host "Reboot-and-wait process for $broker completed." -ForegroundColor Green
+            }
+
+            $NewActiveBroker = $InactiveBrokers[0]
+            Write-Host "Switching active broker from $ActiveBroker to $NewActiveBroker..." -ForegroundColor Cyan
+            $SwitchParams = @{
+                ActiveBroker = $ActiveBroker
+                NewActiveBroker = $NewActiveBroker
+                BrokerServers = $BrokerServers
+            }
+            Switch-ActiveBroker @SwitchParams
+            Write-Host "Active Broker is now $NewActiveBroker" -ForegroundColor Green
+
+            $msg = "Beginning the reboot-and-wait process for the original active broker ($ActiveBroker)..."
+            Write-Host $msg -ForegroundColor Cyan
+            Restart-ServerAndWait -ComputerName $ActiveBroker -TimeoutSecs $TimeoutSecs -MaxRetries $MaxRetries
+            Write-Host "Reboot-and-wait process for $ActiveBroker completed." -ForegroundColor Green
+        } catch {
+            Write-Error "CRITICAL ERROR during broker maintenance: $($_.Exception.Message)"
+        }
+    }
+}

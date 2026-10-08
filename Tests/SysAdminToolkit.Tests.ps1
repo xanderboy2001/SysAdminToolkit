@@ -452,4 +452,31 @@ Describe 'Function layout' {
         $definitions | Group-Object | Where-Object Count -gt 1 | Select-Object -ExpandProperty Name |
             Should -BeNullOrEmpty
     }
+
+    It 'names every file after the single function it defines' {
+        $root = Join-Path $PSScriptRoot '..'
+        $parser = [System.Management.Automation.Language.Parser]
+        $getFileParams = @{
+            Path = "$root/Private", "$root/Public"
+            Filter = "*.ps1"
+            Recurse = $true
+        }
+        $mismatches = foreach ($file in Get-ChildItem @getFileParams) {
+            $fileAst = $parser::ParseFile($file.FullName, [ref]$null, [ref]$null)
+            $names = @($fileAst.FindAll(
+                    { $args[0] -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $false
+                ).Name)
+            if ($names.Count -ne 1 -or $names[0] -cne $file.BaseName) {
+                "$($file.Name): $($names -join ', ')"
+            }
+        }
+        $mismatches | Should -BeNullOrEmpty
+    }
+
+    It 'keeps exactly the exported commands in Public/' {
+        $root = Join-Path $PSScriptRoot '..'
+        $publicNames = (Get-ChildItem -Path "$root/Public" -Filter '*.ps1' -Recurse).BaseName | Sort-Object
+        $exported = (Import-PowerShellDataFile -Path $script:manifestPath).FunctionsToExport | Sort-Object
+        $publicNames | Should -Be $exported
+    }
 }
