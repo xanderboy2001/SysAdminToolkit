@@ -135,7 +135,7 @@ Describe 'Expand-IPRange' {
     It 'handles a range that crosses 128.0.0.0' {
         InModuleScope SysAdminToolkit {
             Expand-IPRange -StartIPAddress '127.255.255.255' -EndIPAddress '128.0.0.1' |
-                Should -be @('127.255.255.255', '128.0.0.0', '128.0.0.1')
+                Should -Be @('127.255.255.255', '128.0.0.0', '128.0.0.1')
         }
     }
 
@@ -449,7 +449,7 @@ Describe 'Function layout' {
                 { $args[0] -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $false
             ) | ForEach-Object { $_.Name }
         }
-        $definitions | Group-Object | Where-Object Count -gt 1 | Select-Object -ExpandProperty Name |
+        $definitions | Group-Object | Where-Object Count -GT 1 | Select-Object -ExpandProperty Name |
             Should -BeNullOrEmpty
     }
 
@@ -457,8 +457,8 @@ Describe 'Function layout' {
         $root = Join-Path $PSScriptRoot '..'
         $parser = [System.Management.Automation.Language.Parser]
         $getFileParams = @{
-            Path = "$root/Private", "$root/Public"
-            Filter = "*.ps1"
+            Path    = "$root/Private", "$root/Public"
+            Filter  = "*.ps1"
             Recurse = $true
         }
         $mismatches = foreach ($file in Get-ChildItem @getFileParams) {

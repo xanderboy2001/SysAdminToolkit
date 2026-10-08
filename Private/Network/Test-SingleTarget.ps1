@@ -33,14 +33,14 @@ function Test-SingleTarget {
     }
 
     [PSCustomObject]@{
-        Name = $Target
-        IPAddress = if ($ipAddress) {
+        Name         = $Target
+        IPAddress    = if ($ipAddress) {
             $ipAddress.ToString()
         } else {
             $null
         }
-        Online = $replies.Count -gt 0
+        Online       = $replies.Count -gt 0
         ResponseTime = $responseTime
-        Timestamp = Get-Date
+        Timestamp    = Get-Date
     }
 }

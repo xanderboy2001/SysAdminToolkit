@@ -40,20 +40,20 @@ function Read-MenuSelection {
     # Quit
     if ($choice -in $QuitOptions) {
         return @{
-            Quit    = $true
-            Back    = $false
-            Choice  = $choice
-            Index   = $null
+            Quit   = $true
+            Back   = $false
+            Choice = $choice
+            Index  = $null
         }
     }
 
     # Back
     if ($choice -in $BackOptions) {
         return @{
-            Quit    = $false
-            Back    = $true
-            Choice  = $choice
-            Index   = $null
+            Quit   = $false
+            Back   = $true
+            Choice = $choice
+            Index  = $null
         }
     }
 
@@ -62,10 +62,10 @@ function Read-MenuSelection {
         $i = [int]$choice
         if ($i -ge 1 -and $i -le $Options.Count) {
             return @{
-                Quit    = $false
-                Back    = $false
-                Choice  = $choice
-                Index   = $i - 1
+                Quit   = $false
+                Back   = $false
+                Choice = $choice
+                Index  = $i - 1
             }
         }
     }
@@ -73,9 +73,9 @@ function Read-MenuSelection {
     # Invalid input
     Write-Host 'Invalid input' -ForegroundColor Red
     return @{
-        Quit    = $false
-        Back    = $false
-        Choice  = $choice
-        Index   = $null
+        Quit   = $false
+        Back   = $false
+        Choice = $choice
+        Index  = $null
     }
 }

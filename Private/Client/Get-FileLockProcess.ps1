@@ -62,9 +62,9 @@ function Get-FileLockProcess {
             ForEach-Object {
                 [PSCustomObject]@{
                     ComputerName = $env:COMPUTERNAME
-                    ProcessName = $_.Process
-                    PID = [int]$_.PID
-                    Path = if ($_.PSObject.Properties['Name']) {
+                    ProcessName  = $_.Process
+                    PID          = [int]$_.PID
+                    Path         = if ($_.PSObject.Properties['Name']) {
                         $_.Name
                     } else {
                         $null
@@ -76,9 +76,9 @@ function Get-FileLockProcess {
     if ($ComputerName) {
         $invokeParams = @{
             ComputerName = $ComputerName
-            ScriptBlock = $processFinder
+            ScriptBlock  = $processFinder
             ArgumentList = $FileName, $HandleExe
-            AsJob = $true
+            AsJob        = $true
         }
         $job = Invoke-Command @invokeParams
     } else {

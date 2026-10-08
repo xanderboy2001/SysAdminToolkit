@@ -76,7 +76,7 @@ function Stop-FileLock {
     $handleExe = Join-Path -Path $sysinternalsPath -ChildPath 'handle.exe'
 
     $lockParams = @{
-        FileName = $FileName
+        FileName  = $FileName
         HandleExe = $handleExe
     }
     if ($ComputerName) {
@@ -118,9 +118,9 @@ function Stop-FileLock {
             if ($ComputerName) {
                 $stopParams = @{
                     ComputerName = $ComputerName
-                    ScriptBlock = $processStopper
+                    ScriptBlock  = $processStopper
                     ArgumentList = $lock.PID, $lock.ProcessName
-                    ErrorAction = 'Stop'
+                    ErrorAction  = 'Stop'
                 }
                 $result = Invoke-Command @stopParams
             } else {
@@ -133,10 +133,10 @@ function Stop-FileLock {
 
         [PSCustomObject]@{
             ComputerName = $lock.ComputerName
-            ProcessName = $lock.ProcessName
-            PID = $lock.PID
-            Path = $lock.Path
-            Result = $result
+            ProcessName  = $lock.ProcessName
+            PID          = $lock.PID
+            Path         = $lock.Path
+            Result       = $result
         }
     }
 }

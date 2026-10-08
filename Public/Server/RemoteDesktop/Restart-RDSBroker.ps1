@@ -82,9 +82,9 @@ function Restart-RDSBroker {
         try {
             Write-Host "Getting list of broker servers..." -ForegroundColor Cyan
             $ServerParams = @{
-                ConnectionBroker    = $BrokerServerFQDN
-                Role                = 'RDS-CONNECTION-BROKER'
-                ErrorAction         = 'Stop'
+                ConnectionBroker = $BrokerServerFQDN
+                Role             = 'RDS-CONNECTION-BROKER'
+                ErrorAction      = 'Stop'
             }
             $BrokerServers = (Get-RDServer @ServerParams).Server
             Write-Host "Retrieved list of broker servers." -ForegroundColor Green
@@ -126,9 +126,9 @@ function Restart-RDSBroker {
             $NewActiveBroker = $InactiveBrokers[0]
             Write-Host "Switching active broker from $ActiveBroker to $NewActiveBroker..." -ForegroundColor Cyan
             $SwitchParams = @{
-                ActiveBroker = $ActiveBroker
+                ActiveBroker    = $ActiveBroker
                 NewActiveBroker = $NewActiveBroker
-                BrokerServers = $BrokerServers
+                BrokerServers   = $BrokerServers
             }
             Switch-ActiveBroker @SwitchParams
             Write-Host "Active Broker is now $NewActiveBroker" -ForegroundColor Green

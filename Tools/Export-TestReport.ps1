@@ -84,9 +84,9 @@ foreach ($file in $sourceFiles) {
         $fileErrors = $null
         $result = $null
         $analyzerParams = @{
-            Path = $file.FullName
-            Settings = $settingsPath
-            ErrorAction = 'SilentlyContinue'
+            Path          = $file.FullName
+            Settings      = $settingsPath
+            ErrorAction   = 'SilentlyContinue'
             ErrorVariable = 'fileErrors'
         }
         try {
@@ -105,7 +105,7 @@ foreach ($file in $sourceFiles) {
     if ($fileErrors) {
         foreach ($err in $fileErrors) {
             $analyzerErrors.Add([pscustomobject]@{
-                    File = ConvertTo-RelativePath $file.FullName
+                    File    = ConvertTo-RelativePath $file.FullName
                     Message = $err.Exception.Message
                 })
         }

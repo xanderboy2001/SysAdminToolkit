@@ -66,14 +66,14 @@ function Set-RDSessionHostMode {
     try {
         Write-Host "Getting list of Remote Desktop Session Hosts in $SelectedCollection..." -ForegroundColor Cyan
         $SessionHostProperty = @{
-            Name="SessionHost"
-            Expression= {
+            Name       = "SessionHost"
+            Expression = {
                 $_.SessionHost.toLower()
             }
         }
         $NewConnectionAllowedProperty = @{
-            Name="NewConnectionAllowed"
-            Expression= {
+            Name       = "NewConnectionAllowed"
+            Expression = {
                 if ($_.NewConnectionAllowed -eq 'Yes') {
                     $true
                 } else {
@@ -82,9 +82,9 @@ function Set-RDSessionHostMode {
             }
         }
         $SessionHostParams = @{
-            ConnectionBroker    = $ConnectionBrokerFQDN
-            CollectionName      = $SelectedCollection
-            ErrorAction         = 'Stop'
+            ConnectionBroker = $ConnectionBrokerFQDN
+            CollectionName   = $SelectedCollection
+            ErrorAction      = 'Stop'
         }
         $Servers = Get-RDSessionHost @SessionHostParams |
             Select-Object -Property $SessionHostProperty, $NewConnectionAllowedProperty |
@@ -120,10 +120,10 @@ function Set-RDSessionHostMode {
                 $msg = "New connections are enabled on $($server.SessionHost). Disabling new connections..."
                 Write-Host $msg -ForegroundColor Cyan
                 $SetRDHostParams = @{
-                    ConnectionBroker = $ConnectionBrokerFQDN
-                    SessionHost = $server.SessionHost
+                    ConnectionBroker     = $ConnectionBrokerFQDN
+                    SessionHost          = $server.SessionHost
                     NewConnectionAllowed = 'No'
-                    ErrorAction = 'Stop'
+                    ErrorAction          = 'Stop'
                 }
                 Set-RDSessionHost @SetRDHostParams
                 Write-Host "Disabled new connections on $($server.SessionHost)" -ForegroundColor Green
@@ -135,10 +135,10 @@ function Set-RDSessionHostMode {
                 $msg = "New Connections are disabled on $($server.SessionHost). Enabling new connections..."
                 Write-Host $msg -ForegroundColor Cyan
                 $SetRDHostParams = @{
-                    ConnectionBroker = $ConnectionBrokerFQDN
-                    SessionHost = $server.SessionHost
+                    ConnectionBroker     = $ConnectionBrokerFQDN
+                    SessionHost          = $server.SessionHost
                     NewConnectionAllowed = 'Yes'
-                    ErrorAction = 'Stop'
+                    ErrorAction          = 'Stop'
                 }
                 Set-RDSessionHost @SetRDHostParams
                 Write-Host "Enabled new connections on $($server.SessionHost)" -ForegroundColor Green

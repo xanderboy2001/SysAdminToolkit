@@ -128,15 +128,15 @@ function Test-ComputerReachability {
             ForEach-Object {
                 $completed++
                 $progressParams = @{
-                    Activity = $activity
-                    Status = "$completed / $total"
+                    Activity        = $activity
+                    Status          = "$completed / $total"
                     PercentComplete = [int](($completed / $total) * 100)
                 }
                 Write-Progress @progressParams
 
                 if ($Quiet) {
                     [PSCustomObject]@{
-                        Name = $_.Name
+                        Name   = $_.Name
                         Online = $_.Online
                     }
                 } else {

@@ -8,25 +8,25 @@
     ExcludeRules = @()
 
     Rules        = @{
-        PSPlaceOpenBrace           = @{
+        PSPlaceOpenBrace                   = @{
             Enable             = $true
             OnSameLine         = $true
             NewLineAfter       = $true
             IgnoreOneLineBlock = $true
         }
-        PSPlaceCloseBrace          = @{
+        PSPlaceCloseBrace                  = @{
             Enable             = $true
             NewLineAfter       = $false   # allows '} else {' (OTBS), which the repository already uses
             IgnoreOneLineBlock = $true
             NoEmptyLineBefore  = $false
         }
-        PSUseConsistentIndentation = @{
+        PSUseConsistentIndentation         = @{
             Enable              = $true
             Kind                = 'space'
             IndentationSize     = 4
             PipelineIndentation = 'IncreaseIndentationForFirstPipeline'
         }
-        PSUseConsistentWhitespace  = @{
+        PSUseConsistentWhitespace          = @{
             Enable          = $true
             CheckInnerBrace = $true
             CheckOpenBrace  = $true
@@ -36,14 +36,14 @@
             CheckSeparator  = $true
             CheckParameter  = $false
         }
-        PSAlignAssignmentStatement = @{
+        PSAlignAssignmentStatement         = @{
             Enable         = $true
             CheckHashtable = $true
         }
-        PSUseCorrectCasing         = @{
+        PSUseCorrectCasing                 = @{
             Enable = $true
         }
-        PSAvoidLongLines           = @{
+        PSAvoidLongLines                   = @{
             Enable            = $true
             MaximumLineLength = 115
         }

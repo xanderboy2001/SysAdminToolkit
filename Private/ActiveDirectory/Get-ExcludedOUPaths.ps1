@@ -18,7 +18,7 @@ function Get-ExcludedOUPaths {
         }
 
         $Exclusions = $RawInput -split ';' |
-            Where-Object { $_ -Match '\S' } |
+            Where-Object { $_ -match '\S' } |
             ForEach-Object { $_.Trim() }
 
         $AllValid = $true
