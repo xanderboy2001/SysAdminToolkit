@@ -437,3 +437,19 @@ Describe 'Save-ToolkitConfig' {
         }
     }
 }
+
+Describe 'Function layout' {
+    It 'defines each top-level function exactly once' {
+        $root = Join-Path $PSScriptRoot '..'
+        $files = Get-ChildItem -Path "$root/Private", "$root/Public" -Filter '*.ps1' -Recurse
+        $parser = [System.Management.Automation.Language.Parser]
+        $definitions = foreach ($file in $files) {
+            $fileAst = $parser::ParseFile($file.FullName, [ref]$null, [ref]$null)
+            $fileAst.FindAll(
+                { $args[0] -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $false
+            ) | ForEach-Object { $_.Name }
+        }
+        $definitions | Group-Object | Where-Object Count -gt 1 | Select-Object -ExpandProperty Name |
+            Should -BeNullOrEmpty
+    }
+}
