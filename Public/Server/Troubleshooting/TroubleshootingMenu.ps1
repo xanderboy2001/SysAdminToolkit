@@ -27,10 +27,16 @@ function Show-TroubleshootingMenu {
     }
     if ($result.Back) {
         Show-ServerMenu
+        return
     }
     switch ($result.Index) {
         0 {
-            Get-ServerDiskType
+            # Get-ServerDiskType is referenced here but is not defined anywhere in the module yet.
+            if (Get-Command -Name 'Get-ServerDiskType' -ErrorAction SilentlyContinue) {
+                Get-ServerDiskType
+            } else {
+                Write-Warning "'Query Server Disk Type' is not implemented yet."
+            }
         }
     }
 }

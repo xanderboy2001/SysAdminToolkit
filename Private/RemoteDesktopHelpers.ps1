@@ -96,6 +96,6 @@ function Get-RDHosts {
 
     Get-RDSessionHost -ConnectionBroker $ConnectionBroker -CollectionName $CollectionName |
         Select-Object -ExpandProperty SessionHost |
-        ForEach-Object { $_.ToLower() -replace '.contoso.com', '' } |
+        ForEach-Object { ($_ -split '\.', 2)[0].ToLower() } |
         Sort-Object
 }

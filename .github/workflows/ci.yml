@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show PowerShell version
+        run: $PSVersionTable
+
+      # RequiredModules = ActiveDirectory, so the module cannot be imported without RSAT AD PowerShell.
+      # Verify this step on the current runner image; adjust if the feature name or availability changes.
+      - name: Install RSAT Active Directory PowerShell
+        run: Install-WindowsFeature -Name RSAT-AD-PowerShell -ErrorAction Stop
+
+      - name: Install test tooling
+        run: |
+          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+          Install-Module -Name Pester -MinimumVersion 5.5.0 -Scope CurrentUser -Force -SkipPublisherCheck
+          Install-Module -Name PSScriptAnalyzer -Scope CurrentUser -Force
+
+      - name: Validate manifest
+        run: Test-ModuleManifest -Path ./SysAdminToolkit.psd1 -ErrorAction Stop | Format-List Name, Version, ExportedFunctions
+
+      - name: PSScriptAnalyzer (blocking rules)
+        run: |
+          $blockingRules = @(
+            'PSAvoidUsingInvokeExpression', 'PSAvoidUsingPlainTextForPassword',
+            'PSAvoidUsingConvertToSecureStringWithPlainText', 'PSAvoidUsingUsernameAndPasswordParams',
+            'PSUseShouldProcessForStateChangingFunctions', 'PSShouldProcess',
+            'PSAvoidAssignmentToAutomaticVariable', 'PSAvoidUsingEmptyCatchBlock',
+            'PSUseDeclaredVarsMoreThanAssignments', 'PSUseApprovedVerbs', 'PSReservedCmdletChar',
+            'PSReservedParams', 'PSAvoidGlobalVars', 'PSUseToExportFieldsInManifest',
+            'PSAvoidDefaultValueSwitchParameter', 'PSMissingModuleManifestField'
+          )
+          $all = Invoke-ScriptAnalyzer -Path . -Recurse -Settings ./PSScriptAnalyzerSettings.psd1
+          $all | Sort-Object ScriptName, Line | Format-Table -AutoSize RuleName, Severity, ScriptName, Line, Message
+          $blocking = $all | Where-Object { $_.Severity -eq 'Error' -or $_.RuleName -in $blockingRules }
+          if ($blocking) { throw "$(@($blocking).Count) blocking analyzer finding(s)." }
+
+      - name: Pester
+        run: |
+          $config = New-PesterConfiguration
+          $config.Run.Path = './Tests'
+          $config.Run.Exit = $true
+          $config.TestResult.Enabled = $true
+          $config.Output.Verbosity = 'Detailed'
+          Invoke-Pester -Configuration $config

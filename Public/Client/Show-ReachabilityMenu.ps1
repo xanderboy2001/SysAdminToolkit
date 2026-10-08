@@ -36,14 +36,14 @@ function Show-ReachabilityMenu {
 
     switch ($result.Index) {
         0 {
-            $input = Read-Host "Enter computer names or IPs (comma separated)"
+            $rawTargets = Read-Host "Enter computer names or IPs (comma separated)"
 
-            if ([string]::IsNullOrWhiteSpace($input)) {
+            if ([string]::IsNullOrWhiteSpace($rawTargets)) {
                 Write-Warning "No input provided"
                 return
             }
 
-            $targets = $input -split ',' | ForEach-Object { $_.Trim() }
+            $targets = $rawTargets -split ','
 
             Write-Host "`nRunning test..." -ForegroundColor Cyan
             Test-ComputerReachability -ComputerName $targets | Format-Table

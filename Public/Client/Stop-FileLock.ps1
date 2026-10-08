@@ -45,7 +45,7 @@ function Get-FileLockProcess {
     $processFinder = {
         param($Name, $HandlePath)
 
-        $signature = Get-AuthenticCodeSignature -FilePath $HandlePath -ErrorAction Stop
+        $signature = Get-AuthenticodeSignature -FilePath $HandlePath -ErrorAction Stop
         $isMicrosoftSigned = $signature.Status -eq 'Valid' -and
         $signature.SignerCertificate.Subject -match '(^|,\s*)O=Microsoft Corporation(,|$)'
         if (-not $isMicrosoftSigned) {
@@ -100,7 +100,7 @@ function Get-FileLockProcess {
             Select-Object -Property ComputerName, ProcessName, PID, Path |
             Sort-Object -Property PID -Unique
     } finally {
-        Remove-Job -Job -Force
+        Remove-Job -Job $job -Force
     }
 }
 
@@ -113,7 +113,7 @@ function Stop-FileLock {
     Uses Sysinternals Handle.exe (path from the Sysinternals toolkit setting) to find processes with an open
     handle to the file, then stops each one after confirmation. Processes are always stopped on the same computer
     on which they were found. Before stopping a process, its name is re-checked against the PID to avoid killing
-    and unrelated process if the PID was reused.
+    an unrelated process if the PID was reused.
     When FileName is not supplied, the function runs interactively and prompts for the file name and computer.
 
     .PARAMETER FileName
@@ -124,7 +124,7 @@ function Stop-FileLock {
     Optional. The remote computer to target. Requires WinRM. If omitted, the local computer is targeted.
 
     .PARAMETER Force
-    Supresses the per-process confirmation prompt unless -Confirm is also specified.
+    Suppresses the per-process confirmation prompt unless -Confirm is also specified.
 
     .EXAMPLE
     Stop-FileLock
@@ -177,7 +177,7 @@ function Stop-FileLock {
 
     $sysinternalsPath = (Get-ToolkitConfig).SysinternalsPath
     if (-not $sysinternalsPath) {
-        throw "The SysinternalsPath settting is empty. Set it in the toolkit configuration."
+        throw "The SysinternalsPath setting is empty. Set it in the toolkit configuration."
     }
     $handleExe = Join-Path -Path $sysinternalsPath -ChildPath 'handle.exe'
 

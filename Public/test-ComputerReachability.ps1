@@ -52,6 +52,7 @@ function Test-ComputerReachability {
     #>
 
     [CmdletBinding(DefaultParameterSetName = "byName")]
+    [OutputType([pscustomobject])]
     param(
         [Parameter(Mandatory, ParameterSetName = "byName", ValueFromPipeline, ValueFromPipelineByPropertyName)]
         [Alias("TargetNames", "ComputerNames")]
@@ -96,7 +97,7 @@ function Test-ComputerReachability {
                 Expand-NameRange -StartName $StartName -EndName $EndName
             }
             'byIPRange' {
-                Expand-IpRange -StartIPAddress $StartIPAddress -EndIPAddress $EndIPAddress
+                Expand-IPRange -StartIPAddress $StartIPAddress -EndIPAddress $EndIPAddress
             }
             default {
                 $collected
@@ -109,6 +110,8 @@ function Test-ComputerReachability {
             return
         }
 
+        # ForEach-Object -Parallel rejects script blocks passed via $using:, so pass function bodies as strings
+        # and re-create the functions inside each runspace.
         $invokePingDefinition = ${function:Invoke-Ping}.ToString()
         $testSingleTargetDefinition = ${function:Test-SingleTarget}.ToString()
 

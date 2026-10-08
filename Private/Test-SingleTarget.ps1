@@ -16,7 +16,7 @@ function Test-SingleTarget {
         [string]$Target,
 
         [ValidateRange(1, 10)]
-        [int]$Count
+        [int]$Count = 1
     )
 
     # @() guarantees an empty array even when Test-Connection returns to zero or one PingStatus object.

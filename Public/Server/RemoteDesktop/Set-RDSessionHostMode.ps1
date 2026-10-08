@@ -35,12 +35,13 @@ function Select-RDSessionCollection {
         Write-Host "[$($i + 1)] $($Collections[$i])"
     }
 
+    $selection = 0
     do {
-        $SelectedIndex = Read-Host "Select a Remote Desktop Server Collection to manage (1-$($Collections.Count))"
-        $SelectedIndex = $SelectedIndex - 1
-    } until ($SelectedIndex -ge 0 -and $SelectedIndex -le $Collections.Count)
+        $rawInput = Read-Host "Select a Remote Desktop Server Collection to manage (1-$($Collections.Count))"
+        $isNumber = [int]::TryParse($rawInput, [ref]$selection)
+    } until ($isNumber -and $selection -ge 1 -and $selection -le $Collections.Count)
 
-    return $Collections[$SelectedIndex]
+    return $Collections[$selection - 1]
 }
 
 function Select-Server {
@@ -91,10 +92,20 @@ function Select-Server {
 
     do {
         $rawInput = Read-Host "Select one or more Remote Desktop Session Hosts to toggle"
-        $indices = $rawInput -split ',' | ForEach-Object { [int]($_.Trim()) - 1 }
-    } until (($indices | Where-Object { $_ -lt 0 -or $_ -ge $Servers.Count }).Count -eq 0)
+        $tokens = @($rawInput -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+        $isValid = $tokens.Count -gt 0
+        $indicies = foreach ($token in $tokens) {
+            $number = 0
+            if ([int]::TryParse($token, [ref]$number) -and $number -ge 1 -and $number -le $Servers.Count) {
+                $number - 1
+            } else {
+                $isValid = $false
+            }
+        }
+    } until ($isValid)
 
-    return $indices | ForEach-Object { $Servers[$_] }
+    # De-duplicate so that '1,1' does not toggle the same host twice.
+    return $indicies | Select-Object -Unique | ForEach-Object { $Servers[$_] }
 }
 
 function Set-RDSessionHostMode {
@@ -113,8 +124,8 @@ function Set-RDSessionHostMode {
     to enter one.
 
     .EXAMPLE
-    Set-RDSessionHostMode -ConnectionBroker 'broker01'
-    # Connects to broker01 and walks through collection and host selection interactively.
+    Set-RDSessionHostMode -ConnectionBroker 'broker01' -WhatIf
+    # Connects to broker01 and walks through collection and host selection interactively without making changes.
 
     .EXAMPLE
     Set-RDSessionHostMode
@@ -123,7 +134,7 @@ function Set-RDSessionHostMode {
     .NOTES
     Author: Alexander Christian
     #>
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'Medium')]
     param(
         [string]$ConnectionBroker
     )
@@ -206,6 +217,14 @@ function Set-RDSessionHostMode {
     $SelectedServers = Select-Server -Servers $Servers
 
     foreach ($server in $SelectedServers) {
+        $newState = if ($server.NewConnectionAllowed) {
+            'No'
+        } else {
+            'Yes'
+        }
+        if (-not $PSCmdlet.ShouldProcess($server.SessionHost, "Set NewConnectionAllowed to '$newState'")) {
+            continue
+        }
         if ($server.NewConnectionAllowed) {
             try {
                 $msg = "New connections are enabled on $($server.SessionHost). Disabling new connections..."

@@ -1,32 +1,26 @@
 $script:ModuleRoot = $PSScriptRoot
+$script:ConfigPath = Join-Path -Path $env:ProgramData -ChildPath "SysAdminToolkit\Config\config.psd1"
+$script:DefaultConfigPath = Join-Path $script:ModuleRoot "Config\config.defaults.psd1"
+Set-StrictMode -Version Latest
 
-# Load private scripts (helpers)
-$PrivatePath = Join-Path $PSScriptRoot 'Private'
-$PrivateFunctions = @()
-if (Test-Path $PrivatePath) {
-    Get-ChildItem -Path $PrivatePath -Recurse -Filter '*.ps1' | ForEach-Object {
-        . $_.FullName
-        $PrivateFunctions += $_.BaseName
+# Load private helpers first, then public commands. A file that fails to load fails the import loudly instead
+# of leaving the module half-loaded
+foreach ($folderName in 'Private', 'Public') {
+    $folderPath = Join-Path -Path $PSScriptRoot -ChildPath $folderName
+    if (-not (Test-Path -LiteralPath $folderPath)) {
+        continue
     }
-}
-
-# Load public functions and collect their functions
-$PublicPath = Join-Path $PSScriptRoot 'Public'
-$PublicFunctions = @()
-if (Test-Path $PublicPath) {
-    Get-ChildItem -Path $PublicPath -Recurse -Filter '*.ps1' | ForEach-Object {
-        . $_.FullName
-        $PublicFunctions += $_.BaseName
+    foreach ($file in Get-ChildItem -LiteralPath $folderPath -Filter "*.ps1" -File -Recurse) {
+        try {
+            . $file.FullName
+        } catch {
+            throw "SysAdminToolkit: failed to load '$($file.FullName)': $($_.Exception.Message)"
+        }
     }
 }
 
 try {
     Initialize-ToolkitConfig
 } catch {
-    Write-Debug "Config init skipped"
+    Write-Warning "SysAdminToolkit: configuration could not be initialized: $($_.Exception.Message)"
 }
-
-# Export all public functions
-$FunctionList = @($PublicFunctions + $PrivateFunctions)
-$FunctionList += "Start-ToolkitMenu"
-Export-ModuleMember -Function $FunctionList

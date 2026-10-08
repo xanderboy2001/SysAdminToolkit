@@ -1,24 +1,22 @@
-#Requires -Version 5.1
-<#
-.SYNOPSIS
-  Takes a printer name as input and opens the WebUI for configuration in the browser.
-
-.DESCRIPTION
-  This script will ask the user to provide a printer name. The user can also
-  enter 'l' to list all printers. Once a printer name has been verified, the
-  script will get the port field for the printer using Get-Printer and will
-  open the IP address in the web browser.
-
-.EXAMPLE
-  PS .\Open-PrinterWebInterface.ps1
-
-.NOTES
-  Author: Your Name
-#>
-[CmdletBinding()]
-param ()
-
 function Open-PrinterWebInterface {
+    <#
+    .SYNOPSIS
+    Opens a shared printer's web configuration page in the default browser.
+
+    .DESCRIPTION
+    Uses the PrintServer toolkit setting (or prompts for a print server and optionally saves it), prompts for a
+    printer name (enter 'l' to list printers), resolves the printer's TCP/IP port address with Get-PrinterPort,
+    and opens http://<address> in the default browser. If the port is not a standard TCP/IP port, the port name
+    is used as the address.
+
+    .EXAMPLE
+    Open-PrinterWebInterface
+    # Prompts for a printer and opens its web interface.
+
+    .NOTES
+    Author: Alexander Christian
+    Requires the PrintManagement module to access the print server.
+    #>
     [CmdletBinding()]
     param ()
 
@@ -43,7 +41,11 @@ function Open-PrinterWebInterface {
             if ($shouldSave -notmatch '[Nn].*') {
                 $config = Get-ToolkitConfig
                 $config['PrintServer'] = $printServer
-                Save-ToolkitConfig -Config $config
+                try {
+                    Save-ToolkitConfig -Config $config
+                } catch {
+                    Write-Warning "Could not save PrintServer to the configuration: $($_.Exception.Message)"
+                }
             }
         } while ($shouldSave -ne '' -and $shouldSave -notmatch '[YyNn].*')
     }
@@ -69,8 +71,21 @@ function Open-PrinterWebInterface {
         }
     } while (-not $printerValid)
 
-    $ip = $printerList | Where-Object { $_.Name -ieq $printerName } | Select-Object -ExpandProperty PortName
-    $url = "http://$ip"
+    $PortName = $printerList | Where-Object { $_.Name -ieq $printerName } |
+        Select-Object -ExpandProperty PortName
 
-    Start-Process "explorer.exe" $url
+    # Port names are often 'IP_10.0.0.5' or custom labels; the TCP/IP port's PrinterHostAddress is the real target.
+    $printerPort = Get-PrinterPort -ComputerName $printServer -Name $PortName -ErrorAction SilentlyContinue
+    $address = if ($printerPort.PrinterHostAddress) {
+        $printerPort.PrinterHostAddress
+    } else {
+        $PortName
+    }
+
+    $uri = $null
+    if (-not [System.Uri]::TryCreate("http://$address", [System.UriKind]::Absolute, [ref]$uri)) {
+        throw "Printer '$printerName' does not have a usable network address (port '$PortName')."
+    }
+
+    Start-Process -FilePath $uri.AbsoluteUri
 }

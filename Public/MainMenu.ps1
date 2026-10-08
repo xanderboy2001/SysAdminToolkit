@@ -14,6 +14,8 @@ function Start-ToolkitMenu {
     .NOTES
     Author: Alexander Christian
     #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'Start-ToolkitMenu only opens an interactive menu; it changes no system state.')]
     [CmdletBinding()]
     param()
     $menuOptions = @('Server', 'Client', 'Config')

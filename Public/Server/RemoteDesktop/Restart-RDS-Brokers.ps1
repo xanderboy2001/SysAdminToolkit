@@ -1,4 +1,3 @@
-#Requires -Version 5.1
 function Wait-RDMService {
     <#
     .SYNOPSIS
@@ -113,7 +112,7 @@ function Restart-ServerAndWait {
         PS> Restart-ServerAndWait -ComputerName broker.domain.com
 
     #>
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess)]
     param(
         [Parameter(
             Mandatory,
@@ -146,6 +145,9 @@ function Restart-ServerAndWait {
         throw "Error when pinging ${ComputerName}: $($_.Exception.Message)"
     }
 
+    if (-not $PSCmdlet.ShouldProcess($ComputerName, 'Restart computer and wait for RDS services')) {
+        return
+    }
     try {
         Write-Host "Rebooting the inactive broker ($ComputerName)..." -ForegroundColor Cyan
         Restart-Computer -ComputerName $ComputerName -Force -Wait -For PowerShell -Timeout $TimeoutSecs
@@ -269,7 +271,7 @@ function Restart-RDSBroker {
     Author: Alexander Christian
     Requires the RemoteDesktop PowerShell module and WinRM access to all broker servers.
     #>
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'High')]
     param(
         [string]$BrokerServer,
         [int]$TimeoutSecs,

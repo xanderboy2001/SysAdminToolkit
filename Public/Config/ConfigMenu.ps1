@@ -97,7 +97,7 @@ function Invoke-EditConfig {
         $config = Get-ToolkitConfig
         $keys = [string[]]($config.Keys | Sort-Object)
         $options = $keys | ForEach-Object {
-            $value = if ($config[$_] -eq '') {
+            $value = if ([string]::IsNullOrEmpty([string]$config[$_])) {
                 '(not set)'
             } else {
                 $config[$_]
@@ -117,7 +117,7 @@ function Invoke-EditConfig {
 
         $key = $keys[$result.Index]
         $currentValue = $config[$key]
-        $displayValue = if ($currentValue -eq '') {
+        $displayValue = if ([string]::IsNullOrEmpty([string]$currentValue)) {
             '(not set)'
         } else {
             $currentValue
@@ -140,8 +140,12 @@ function Invoke-EditConfig {
             $config[$key] = $newValue
         }
 
-        Save-ToolkitConfig -Config $config
-        Write-Host "'$key' updated successfully." -ForegroundColor Green
+        try {
+            Save-ToolkitConfig -Config $config
+            Write-Host "'$key' updated successfully." -ForegroundColor Green
+        } catch {
+            Write-Error "Failed to save '$key': $($_.Exception.Message)"
+        }
     } while ($true)
 }
 
