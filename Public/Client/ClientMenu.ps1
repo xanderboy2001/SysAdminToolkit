@@ -20,6 +20,7 @@ function Show-ClientMenu {
         'Unlock a file being held by a process'
         'Get battery report of all computers'
         "Open a Printer's Web Interface"
+        "Test computer reachability"
     )
     $result = Show-Menu -Title 'Client Menu' -Options $menuOptions
 
@@ -39,6 +40,9 @@ function Show-ClientMenu {
         }
         2 {
             Open-PrinterWebInterface
+        }
+        3 {
+            Show-ReachabilityMenu
         }
     }
 }

@@ -1,59 +1,4 @@
 #Requires -Version 5.1
-function Get-ActiveBroker {
-    <#
-    .SYNOPSIS
-    Uses Get-RDConnectionBrokerHighAvailability to query RD Connection Broker server information.
-    It then returns the FQDN of the active broker.
-
-    .DESCRIPTION
-    Since broker1 and broker2 are configured in High Availability, we can use either in the
-    '-ConnectionBroker' parameter. This function uses broker1 first, and if that fails for whatever reason,
-    the function will try to get the active broker from broker2. If both fail or return nothing, the
-    function throws an error.
-
-    .PARAMETER BrokerServers
-    An array of Connection Broker FQDNs or hostnames to query in order. The first server that responds
-    successfully determines the active broker.
-
-    .EXAMPLE
-    Get-ActiveBroker -BrokerServers @('broker1.domain.com', 'broker2.domain.com')
-    broker.domain.com
-
-    .OUTPUTS
-    [System.String]. Returns the FQDN of the active broker.
-
-    #>
-    [CmdletBinding()]
-    [OutputType([string])]
-    param(
-        [Parameter(
-            Mandatory,
-            HelpMessage = "One or more Connection Broker FQDNs or hostnames to query in order."
-        )]
-        [ValidateNotNullOrEmpty()]
-        [string[]]$BrokerServers
-    )
-
-    Write-Verbose "Querying RDS High Availability status..."
-    foreach ($server in $BrokerServers) {
-        try {
-            $ActiveServer = (
-                Get-RDConnectionBrokerHighAvailability -ConnectionBroker $server -ErrorAction Stop
-            ).ActiveManagementServer
-            break
-        } catch {
-            $msg = "Could not get active broker from ${server}: $($_.Exception.Message)"
-            Write-Warning $msg
-            continue
-        }
-    }
-    if ($ActiveServer) {
-        $ActiveServer
-    } else {
-        throw "Failed to determine the active broker."
-    }
-}
-
 function Wait-RDMService {
     <#
     .SYNOPSIS
@@ -309,13 +254,16 @@ function Restart-RDSBroker {
     Optional. Maximum number of service polling attempts per broker. Defaults to the RDMaxRetries
     configuration value if 0 or not supplied.
 
-    .EXAMPLE
-    Restart-RDS-Brokers -BrokerServer 'broker01'
-    # Reboots all brokers in the HA group reachable via broker01.
+    .PARAMETER Force
+    Suppresses the confirmation prompt unless -Confirm is also specified.
 
     .EXAMPLE
-    Restart-RDS-Brokers
-    # Reads the broker server from toolkit config and performs the full reboot cycle.
+    Restart-RDSBroker -BrokerServer 'broker01' -WhatIf
+    # Resolves the HA group through broker01 and shows the reboot plan without rebooting anything.
+
+    .EXAMPLE
+    Restart-RDSBroker
+    # Reads the broker server from toolkit config, asks for confirmation, then performs the full reboot cycle.
 
     .NOTES
     Author: Alexander Christian
@@ -325,10 +273,14 @@ function Restart-RDSBroker {
     param(
         [string]$BrokerServer,
         [int]$TimeoutSecs,
-        [int]$MaxRetries
+        [int]$MaxRetries,
+        [switch]$Force
     )
 
     begin {
+        if ($Force -and -not $PSBoundParameters.ContainsKey('Confirm')) {
+            $ConfirmPreference = 'None'
+        }
         $config = Get-ToolkitConfig
         if ($TimeoutSecs -eq 0) {
             $TimeoutSecs = $config.RDTimeoutSecs
@@ -375,6 +327,21 @@ function Restart-RDSBroker {
 
             Write-Host "Current Active Broker`t: $ActiveBroker" -ForegroundColor DarkGray
             Write-Host "Inactive Broker(s)`t: $($InactiveBrokers -join ', ')" -ForegroundColor DarkGray
+
+            # Fail closed before any reboot if the HA topology is not what this procedure assumes.
+            if ($ActiveBroker -notin $BrokerServers) {
+                throw "Active broker '$ActiveBroker' is not in the broker list ($($BrokerServers -join ', ')). " +
+                "Refusing to continue because the inactive/active split cannot be trusted."
+            }
+            if ($InactiveBrokers.Count -lt 1) {
+                throw "Only one Connection Broker was found. A staggered reboot requires at least two brokers."
+            }
+
+            $plan = "Reboot $($InactiveBrokers -join ', '), make $($InactiveBrokers[0]) active, " +
+            "then reboot $ActiveBroker"
+            if (-not $PSCmdlet.ShouldProcess($plan, 'Restart RDS Connection Brokers')) {
+                return
+            }
 
             foreach ($broker in $InactiveBrokers) {
 

@@ -20,6 +20,7 @@ function Show-RDMenu {
     $menuOptions = @(
         'Reboot Connection Brokers',
         'Toggle New Connections on Server'
+        'List connected users'
     )
 
     $result = Show-Menu -Title 'Remote Desktop Menu' -Options $menuOptions
@@ -39,6 +40,9 @@ function Show-RDMenu {
         }
         1 {
             Set-RDSessionHostMode -ConnectionBroker $brokerServer
+        }
+        2 {
+            Get-RDCOnnectedUsers -ConnectionBroker $brokerServer
         }
     }
 }
