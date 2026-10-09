@@ -23,6 +23,8 @@ function Select-RDSessionCollection {
     #>
     [CmdletBinding()]
     [OutputType([string])]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
+        Justification = 'Interactive prompt; output is for the operator, not the pipeline.')]
     param(
         [Parameter(
             Mandatory,

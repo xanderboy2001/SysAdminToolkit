@@ -21,7 +21,10 @@ function Read-Username {
     .NOTES
     Author: Alexander Christian
     #>
+    [CmdletBinding()]
     [OutputType([string])]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
+        Justification = 'Interactive prompt; output is for the operator, not the pipeline.')]
     param()
     while ($true) {
         $usernameInput = Read-Host -Prompt 'Enter the username of the user'

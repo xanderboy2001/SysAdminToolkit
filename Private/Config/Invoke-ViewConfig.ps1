@@ -15,6 +15,8 @@ function Invoke-ViewConfig {
     Author: Alexander Christian
     #>
     [CmdletBinding()]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
+        Justification = 'Interactive prompt; output is for the operator, not the pipeline.')]
     param()
     Show-MenuHeader -Title 'Current Configuration'
 

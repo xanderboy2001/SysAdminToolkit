@@ -27,7 +27,10 @@ function Read-MenuSelection {
     .NOTES
     Author: Alexander Christian
     #>
+    [CmdletBinding()]
     [OutputType([hashtable])]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
+        Justification = 'Interactive prompt; output is for the operator, not the pipeline.')]
     param(
         [String[]]$Options,
         [String[]]$QuitOptions,

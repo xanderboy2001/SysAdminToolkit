@@ -8,6 +8,9 @@ function Write-ProtectedAccountWarning {
     adminCount can remain 1 after an account leaves a protected group, so treat the warning as a prompt to
     double-check, not as an authoritative privilege check.
     #>
+    [CmdletBinding()]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
+        Justification = 'Interactive prompt; output is for the operator, not the pipeline.')]
     param(
         [Parameter(Mandatory)]
         $User

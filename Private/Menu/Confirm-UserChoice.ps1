@@ -23,7 +23,10 @@ function Confirm-UserChoice {
     .NOTES
     Author: Alexander Christian
     #>
+    [CmdletBinding()]
     [OutputType([bool])]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
+        Justification = 'Interactive prompt; output is for the operator, not the pipeline.')]
     param(
         [String]$Action
     )

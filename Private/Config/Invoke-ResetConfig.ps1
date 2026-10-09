@@ -15,6 +15,8 @@ function Invoke-ResetConfig {
     Author: Alexander Christian
     #>
     [CmdletBinding()]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
+        Justification = 'Interactive prompt; output is for the operator, not the pipeline.')]
     param()
     Show-MenuHeader -Title 'Reset Configuration to Defaults'
 

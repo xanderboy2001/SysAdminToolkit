@@ -14,9 +14,11 @@ function Start-ToolkitMenu {
     .NOTES
     Author: Alexander Christian
     #>
+    [CmdletBinding()]
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Start-ToolkitMenu only opens an interactive menu; it changes no system state.')]
-    [CmdletBinding()]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
+        Justification = 'Interactive prompt; output is for the operator, not the pipeline.')]
     param()
     $menuOptions = @('Server', 'Client', 'Config')
 

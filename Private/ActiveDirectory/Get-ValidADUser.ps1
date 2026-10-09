@@ -23,7 +23,10 @@ function Get-ValidADUser {
     .NOTES
     Author: Alexander Christian
     #>
+    [CmdletBinding()]
     [OutputType([Microsoft.ActiveDirectory.Management.ADUser])]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
+        Justification = 'Interactive prompt; output is for the operator, not the pipeline.')]
     param()
     $adProperties = @("DisplayName", "adminCount")
     while ($true) {

@@ -1,5 +1,9 @@
 function Get-ExcludedOUPath {
+    [CmdletBinding()]
     [OutputType([string[]])]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
+        Justification = 'Interactive prompt; output is for the operator, not the pipeline.')]
+    param()
 
     $OUPattern = '^((OU=[^,]+,)+)(DC=[^,]+,DC=[^,]+)$'
 

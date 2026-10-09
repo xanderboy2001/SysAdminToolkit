@@ -18,7 +18,10 @@ function Read-Password {
     .NOTES
     Author: Alexander Christian
     #>
+    [CmdletBinding()]
     [OutputType([System.Security.SecureString])]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
+        Justification = 'Interactive prompt; output is for the operator, not the pipeline.')]
     param()
     # Loop until passwords match
     while ($true) {

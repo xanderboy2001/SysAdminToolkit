@@ -16,6 +16,8 @@ function Invoke-EditConfig {
     Author: Alexander Christian
     #>
     [CmdletBinding()]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
+        Justification = 'Interactive prompt; output is for the operator, not the pipeline.')]
     param()
     do {
         $config = Get-ToolkitConfig
