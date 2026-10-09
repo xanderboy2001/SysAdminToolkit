@@ -9,7 +9,7 @@ function Get-ActiveBroker {
         [string[]]$BrokerServers
     )
 
-    Write-Host "Querying RDS High Availability Status..." -ForegroundColor Cyan
+    Write-Verbose "Querying RDS High Availability Status..."
     foreach ($server in $BrokerServers) {
         try {
             $ActiveServer = (
@@ -24,7 +24,7 @@ function Get-ActiveBroker {
     }
 
     if ($ActiveServer) {
-        Write-Host "The active RDS Broker is '$ActiveServer'" -ForegroundColor Green
+        Write-Verbose "The active RDS Broker is '$ActiveServer'"
         $ActiveServer
     } else {
         throw "Failed to determine active broker."

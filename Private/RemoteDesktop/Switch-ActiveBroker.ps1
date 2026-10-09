@@ -46,7 +46,7 @@ function Switch-ActiveBroker {
 
     try {
         Set-RDActiveManagementServer -ManagementServer $NewActiveBroker -ErrorAction Stop
-        Write-Host "Successfully set $NewActiveBroker as the active broker." -ForegroundColor Green
+        Write-Information "Successfully set $NewActiveBroker as the active broker."
     } catch {
         throw "Fatal error when switching active brokers: $($_.Exception.Message)"
     }

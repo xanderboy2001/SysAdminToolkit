@@ -51,6 +51,10 @@ function Restart-RDSBroker {
     )
 
     begin {
+        if (-not $PSBoundParameters.ContainsKey('InformationAction')) {
+            $InformationPreference = 'Continue'
+        }
+
         if ($Force -and -not $PSBoundParameters.ContainsKey('Confirm')) {
             $ConfirmPreference = 'None'
         }

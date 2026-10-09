@@ -2,7 +2,7 @@ function Restart-ServerAndWait {
     <#
     .SYNOPSIS
 
-        Reboots the specified server and waits for Remote Destop service to start.
+        Reboots the specified server and waits for Remote Desktop service to start.
 
     .DESCRIPTION
 
@@ -56,9 +56,9 @@ function Restart-ServerAndWait {
     )
 
     try {
-        Write-Host "Testing connection to $ComputerName..." -ForegroundColor Cyan
+        Write-Information "Testing connection to $ComputerName..."
         if (Test-Connection -ComputerName $ComputerName -Count 1 -Quiet) {
-            Write-Host "$ComputerName is online" -ForegroundColor Green
+            Write-Information "$ComputerName is online"
         } else {
             throw "$ComputerName is not reachable"
         }
@@ -70,17 +70,17 @@ function Restart-ServerAndWait {
         return
     }
     try {
-        Write-Host "Rebooting the inactive broker ($ComputerName)..." -ForegroundColor Cyan
+        Write-Information "Rebooting the inactive broker ($ComputerName)..."
         Restart-Computer -ComputerName $ComputerName -Force -Wait -For PowerShell -Timeout $TimeoutSecs
-        Write-Host "$ComputerName has successfully rebooted." -ForegroundColor Green
+        Write-Information "$ComputerName has successfully rebooted."
 
-        Write-Host "Waiting for Remote Desktop services to start..." -ForegroundColor Cyan
+        Write-Information "Waiting for Remote Desktop services to start..."
         Wait-RDMService -ComputerName $ComputerName -MaxRetries $MaxRetries
-        Write-Host "Remote Desktop services have started on $ComputerName." -ForegroundColor Green
+        Write-Information "Remote Desktop services have started on $ComputerName."
 
-        Write-Host "Waiting 30 seconds for database syncronization..." -ForegroundColor Cyan
+        Write-Information "Waiting 30 seconds for database synchronization..."
         Start-Sleep -Seconds 30
-        Write-Host "Database sync wait period completed." -ForegroundColor Green
+        Write-Information "Database sync wait period completed."
     } catch {
         throw "Fatal error during reboot process: $($_.Exception.Message)"
     }

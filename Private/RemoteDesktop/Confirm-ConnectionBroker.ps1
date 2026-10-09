@@ -14,12 +14,12 @@ function Confirm-ConnectionBroker {
     } catch [System.Net.Sockets.SocketException] {
         throw "Could not resolve hostname '$ConnectionBroker': $($_.Exception.Message)"
     }
-    Write-Host "Resolved '$ConnectionBroker' to '$BrokerFQDN'" -ForegroundColor Green
+    Write-Verbose "Resolved '$ConnectionBroker' to '$BrokerFQDN'"
 
-    Write-Host "Testing connection to '$BrokerFQDN'..." -ForegroundColor Cyan
+    Write-Verbose "Testing connection to '$BrokerFQDN'..."
     if (-not (Test-Connection -ComputerName $BrokerFQDN -Count 1 -Quiet)) {
         throw "Could not connect to '$BrokerFQDN'"
     }
-    Write-Host "Connection to '$BrokerFQDN' verified." -ForegroundColor Green
+    Write-Verbose "Connection to '$BrokerFQDN' verified."
     $BrokerFQDN
 }

@@ -48,9 +48,9 @@ function Wait-RDMService {
             $status = Invoke-Command -ComputerName $ComputerName -ScriptBlock $ServiceCheckScript -ErrorAction Stop
 
             # Print status of all services
-            Write-Host "Service status on ${ComputerName}:" -ForegroundColor DarkGray
+            Write-Verbose "Service status on ${ComputerName}:"
             $status | ForEach-Object {
-                Write-Host "  $($_.Name): $($_.Status)" -ForegroundColor DarkGray
+                Write-Verbose "  $($_.Name): $($_.Status)"
             }
 
             $allRunning = ($status | Where-Object { $_.Status -ne 4 }).Count -eq 0
@@ -60,12 +60,12 @@ function Wait-RDMService {
             } else {
                 $running = [System.ServiceProcess.ServiceControllerStatus]::Running
                 $status | Where-Object { $_.Status -ne $running } | ForEach-Object {
-                    Write-Host "Waiting for $($_.Name) to start..." -ForegroundColor Cyan
+                    Write-Information "Waiting for $($_.Name) to start..."
                 }
             }
         } catch {
-            Write-Host ("Unable to query service status on $ComputerName (Attempt $RetryCount):" +
-                "$($_.Exception.Message)") -ForegroundColor Yellow
+            Write-Warning ("Unable to query service status on $ComputerName (Attempt $RetryCount):" +
+                "$($_.Exception.Message)")
         }
         $RetryCount++
     } until ($ServicesReady -eq $true -or $RetryCount -gt $MaxRetries)
