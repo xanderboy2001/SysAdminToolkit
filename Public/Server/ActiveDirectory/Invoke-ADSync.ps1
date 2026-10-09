@@ -69,9 +69,9 @@ function Invoke-ADSync {
     $invokeParams = @{
         ComputerName = $ADConnectServerResolved
         # The function body runs remotely, so it must not depend on anything else in this module.
-        ScriptBlock = ${Function:Invoke-ADSyncDeltaCycle}
+        ScriptBlock  = ${Function:Invoke-ADSyncDeltaCycle}
         ArgumentList = $TimeoutSeconds
-        ErrorAction = "Stop"
+        ErrorAction  = "Stop"
     }
     try {
         Write-Verbose "Beginning delta sync on $ADConnectServerResolved (timeout ${TimeoutSeconds}s)..."
