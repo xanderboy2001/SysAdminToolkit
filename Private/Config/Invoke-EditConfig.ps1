@@ -37,8 +37,10 @@ function Invoke-EditConfig {
             return
         }
         if ($result.Back) {
-            Show-ConfigMenu
             return
+        }
+        if ($null -eq $result.Index) {
+            continue
         }
 
         $key = $keys[$result.Index]

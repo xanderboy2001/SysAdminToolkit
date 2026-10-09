@@ -447,6 +447,149 @@ Describe 'Save-ToolkitConfig' {
     }
 }
 
+Describe 'Invoke-ToolkitMenu navigation' {
+    BeforeEach {
+        InModuleScope SysAdminToolkit {
+            # Two-level test menu: Main -> Sub, plus actions that record that they ran.
+            $script:actionLog = [System.Collections.Generic.List[string]]::new()
+            Mock Get-ToolkitMenu {
+                @{
+                    Main = @{
+                        Title = 'Main'
+                        Items = @(
+                            @{ Label = 'Open Sub'; Menu = 'Sub' }
+                            @{ Label = 'Fail'; Action = { throw 'boom' } }
+                            @{ Label = 'Record'; Action = { $script:actionLog.Add('ran') } }
+                        )
+                    }
+                    Sub  = @{
+                        Title = 'Sub'
+                        Items = @(@{ Label = 'Record'; Action = { $script:actionLog.Add('sub') } })
+                    }
+                }
+            }
+            $script:titles = [System.Collections.Generic.List[string]]::new()
+            $script:selections = [System.Collections.Generic.Queue[hashtable]]::new()
+            Mock Show-Menu {
+                $script:titles.Add($Title)
+                $script:selections.Dequeue()
+            }
+            function script:New-Selection {
+                param($Index, [switch]$Back, [switch]$Quit)
+                @{ Quit = [bool]$Quit; Back = [bool]$Back; Choice = ''; Index = $Index }
+            }
+        }
+    }
+
+    It 'opens a submenu, returns on Back, and exits on Quit' {
+        InModuleScope SysAdminToolkit {
+            $script:selections.Enqueue((New-Selection -Index 0))
+            $script:selections.Enqueue((New-Selection -Back))
+            $script:selections.Enqueue((New-Selection -Quit))
+
+            Invoke-ToolkitMenu -MenuName 'Main'
+
+            $script:titles | Should -Be @('Main', 'Sub', 'Main')
+        }
+    }
+
+    It 'shows the same menu again after invalid input (regression: submenus used to exit)' {
+        InModuleScope SysAdminToolkit {
+            $script:selections.Enqueue((New-Selection -Index $null))
+            $script:selections.Enqueue((New-Selection -Quit))
+
+            Invoke-ToolkitMenu -MenuName 'Main'
+
+            $script:titles | Should -Be @('Main', 'Main')
+        }
+    }
+
+    It 'keeps running after an action throws, and shows the menu again after an action' {
+        InModuleScope SysAdminToolkit {
+            $script:selections.Enqueue((New-Selection -Index 1))
+            $script:selections.Enqueue((New-Selection -Index 2))
+            $script:selections.Enqueue((New-Selection -Quit))
+
+            Invoke-ToolkitMenu -MenuName 'Main' -ErrorVariable menuErrors -ErrorAction SilentlyContinue
+
+            "$menuErrors" | Should -BeLike '*boom*'
+            $script:actionLog | Should -Be @('ran')
+            $script:titles | Should -Be @('Main', 'Main', 'Main')
+        }
+    }
+
+    It 'quits from a submenu without returning to the parent' {
+        InModuleScope SysAdminToolkit {
+            $script:selections.Enqueue((New-Selection -Index 0))
+            $script:selections.Enqueue((New-Selection -Quit))
+
+            Invoke-ToolkitMenu -MenuName 'Main'
+
+            $script:titles | Should -Be @('Main', 'Sub')
+        }
+    }
+
+    It 'hides Back on the starting menu only when -NoBackAtRoot is used' {
+        InModuleScope SysAdminToolkit {
+            $script:selections.Enqueue((New-Selection -Index 0))
+            $script:selections.Enqueue((New-Selection -Quit))
+
+            Invoke-ToolkitMenu -MenuName 'Main' -NoBackAtRoot
+
+            Should -Invoke Show-Menu -Times 1 -Exactly -ParameterFilter {
+                $Title -eq 'Main' -and $BackOptions.Count -eq 0
+            }
+            Should -Invoke Show-Menu -Times 1 -Exactly -ParameterFilter {
+                $Title -eq 'Sub' -and $BackOptions.Count -gt 0
+            }
+        }
+    }
+}
+
+Describe 'Get-ToolkitMenu definitions' {
+    It 'links only to menus that exist, and every action calls only commands that exist' {
+        InModuleScope SysAdminToolkit {
+            $menus = Get-ToolkitMenu
+            $problems = foreach ($menuName in $menus.Keys) {
+                foreach ($item in $menus[$menuName].Items) {
+                    if ($item.ContainsKey('Menu')) {
+                        if (-not $menus.ContainsKey($item.Menu)) {
+                            "$menuName/$($item.Label): unknown menu '$($item.Menu)'"
+                        }
+                        continue
+                    }
+                    $commands = $item.Action.Ast.FindAll(
+                        { $args[0] -is [System.Management.Automation.Language.CommandAst] }, $true
+                    ) | ForEach-Object { $_.GetCommandName() }
+                    foreach ($commandName in $commands) {
+                        if (-not (Get-Command -Name $commandName -ErrorAction SilentlyContinue)) {
+                            "$menuName/$($item.Label): command '$commandName' not found"
+                        }
+                    }
+                }
+            }
+            $problems | Should -BeNullOrEmpty
+        }
+    }
+
+    It 'can reach every menu from Main' {
+        InModuleScope SysAdminToolkit {
+            $menus = Get-ToolkitMenu
+            $reached = [System.Collections.Generic.HashSet[string]]::new()
+            $pending = [System.Collections.Generic.Queue[string]]::new()
+            $pending.Enqueue('Main')
+            while ($pending.Count -gt 0) {
+                $name = $pending.Dequeue()
+                if ($reached.Add($name)) {
+                    $menus[$name].Items | Where-Object { $_.ContainsKey('Menu') } |
+                        ForEach-Object { $pending.Enqueue($_.Menu) }
+                }
+            }
+            @($menus.Keys | Where-Object { -not $reached.Contains($_) }) | Should -BeNullOrEmpty
+        }
+    }
+}
+
 Describe 'Function layout' {
     It 'defines each top-level function exactly once' {
         $root = Join-Path $PSScriptRoot '..'

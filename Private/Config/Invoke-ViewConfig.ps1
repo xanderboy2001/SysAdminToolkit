@@ -27,5 +27,4 @@ function Invoke-ViewConfig {
         $paddedKey = $key.PadRight($maxKeyLength)
         Write-Host "$paddedKey : $($config[$key])"
     }
-    Show-ConfigMenu
 }

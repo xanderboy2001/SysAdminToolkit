@@ -25,7 +25,6 @@ function Get-RDConnectedUser {
         return
     }
     if ($result.Back) {
-        Show-RDMenu
         return
     }
 
@@ -42,7 +41,6 @@ function Get-RDConnectedUser {
         return
     }
     if ($result.Back) {
-        Show-RDMenu
         return
     }
     $SelectedHost = $Hosts[$result.Index]
