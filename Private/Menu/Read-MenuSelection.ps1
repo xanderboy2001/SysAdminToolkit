@@ -34,7 +34,7 @@ function Read-MenuSelection {
         [String[]]$BackOptions
     )
 
-    Show-MenuInstructions -QuitOptions $QuitOptions -BackOptions $BackOptions
+    Show-MenuInstruction -QuitOptions $QuitOptions -BackOptions $BackOptions
     $choice = Read-Host
 
     # Quit

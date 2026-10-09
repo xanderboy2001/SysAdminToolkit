@@ -1,4 +1,4 @@
-function Get-ExcludedOUPaths {
+function Get-ExcludedOUPath {
     [OutputType([string[]])]
 
     $OUPattern = '^((OU=[^,]+,)+)(DC=[^,]+,DC=[^,]+)$'

@@ -1,4 +1,4 @@
-function Show-MenuOptions {
+function Show-MenuOption {
     <#
     .SYNOPSIS
     Displays a numbered list of menu options in green.
@@ -11,7 +11,7 @@ function Show-MenuOptions {
     An array of strings representing the menu options to display.
 
     .EXAMPLE
-    Show-MenuOptions -Options @('Option1','Option2','Option3')
+    Show-MenuOption -Options @('Option1','Option2','Option3')
     # Displays the options as a numbered list in green.
 
     .NOTES

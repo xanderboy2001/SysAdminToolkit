@@ -64,12 +64,12 @@ Describe 'Module manifest and public API' {
 
     It 'exports exactly the documented public commands' {
         $expected = @(
-            'Get-ADDisabledUsers', 'Get-BatteryReport', 'Get-RDConnectedUsers', 'Invoke-ADAccountDisable',
+            'Get-ADDisabledUser', 'Get-BatteryReport', 'Get-RDConnectedUser', 'Invoke-ADAccountDisable',
             'Invoke-ADAccountUnlock', 'Invoke-ADPasswordReset', 'Invoke-ADSync', 'Open-PrinterWebInterface',
             'Restart-RDSBroker', 'Set-RDSessionHostMode', 'Show-ReachabilityMenu', 'Start-ToolkitMenu',
             'Stop-FileLock', 'Test-ComputerReachability'
         ) | Sort-Object
-        $actual = (Get-Command -Module SysAdminToolkit).Name | Sort-Object
+        $actual = (Get-Command -Module SysAdminToolkit -CommandType Function).Name | Sort-Object
         $actual | Should -Be $expected
     }
 
@@ -85,6 +85,15 @@ Describe 'Module manifest and public API' {
         'Invoke-ADAccountUnlock', 'Invoke-ADPasswordReset'
     ) {
         (Get-Command -Name $_).Parameters.Keys | Should -Contain 'WhatIf'
+    }
+
+    It 'keeps the pre-0.1 plural names working as aliases' -ForEach @(
+        @{ Alias = 'Get-ADDisabledUsers'; Target = 'Get-ADDisabledUser' }
+        @{ Alias = 'Get-RDConnectedUsers'; Target = 'Get-RDConnectedUser' }
+    ) {
+        $command = Get-Command -Name $Alias -Module SysAdminToolkit
+        $command.CommandType | Should -Be 'Alias'
+        $command.ResolvedCommand.Name | Should -Be $Target
     }
 }
 

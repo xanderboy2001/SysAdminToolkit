@@ -1,5 +1,6 @@
-function Get-ADDisabledUsers {
+function Get-ADDisabledUser {
     [CmdletBinding()]
+    [Alias('Get-ADDisabledUsers')]
     param(
         [ValidateNotNullOrWhiteSpace()]
         [string[]]$Exclusions,
@@ -9,7 +10,7 @@ function Get-ADDisabledUsers {
     )
 
     if (-not $Exclusions) {
-        $Exclusions = Get-ExcludedOUPaths
+        $Exclusions = Get-ExcludedOUPath
     }
 
     $GetADUserParams = @{

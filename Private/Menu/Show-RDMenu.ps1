@@ -42,7 +42,7 @@ function Show-RDMenu {
             Set-RDSessionHostMode -ConnectionBroker $brokerServer
         }
         2 {
-            Get-RDConnectedUsers -ConnectionBroker $brokerServer
+            Get-RDConnectedUser -ConnectionBroker $brokerServer
         }
     }
 }

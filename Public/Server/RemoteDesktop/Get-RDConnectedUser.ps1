@@ -1,4 +1,5 @@
-function Get-RDConnectedUsers {
+function Get-RDConnectedUser {
+    [Alias('Get-RDConnectedUsers')]
     param(
         [string]$ConnectionBroker
     )
@@ -12,7 +13,7 @@ function Get-RDConnectedUsers {
 
     $ActiveServer = Get-ActiveBroker -BrokerServers $BrokerFQDN
 
-    $Collections = Get-RDCollections -ConnectionBroker $ActiveServer
+    $Collections = Get-RDCollectionName -ConnectionBroker $ActiveServer
     do {
         $result = Show-Menu -Title "Remote Desktop Server Collections" -Options $Collections
     } until ($result.Quit -or $result.Back -or $null -ne $result.Index)
@@ -28,7 +29,7 @@ function Get-RDConnectedUsers {
     $SelectedCollection = $Collections[$result.Index]
     Write-Host "You have selected '$SelectedCollection'" -ForegroundColor Green
 
-    $Hosts = Get-RDHosts -ConnectionBroker $ActiveServer -CollectionName $SelectedCollection
+    $Hosts = Get-RDHostName -ConnectionBroker $ActiveServer -CollectionName $SelectedCollection
 
     do {
         $result = Show-Menu -Title "Remote Desktop Hosts in '$SelectedCollection'" -Options $Hosts

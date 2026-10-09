@@ -19,18 +19,21 @@
         'Open-PrinterWebInterface'
         'Stop-FileLock'
         'Test-ComputerReachability'
-        'Get-ADDisabledUsers'
+        'Get-ADDisabledUser'
         'Invoke-ADAccountDisable'
         'Invoke-ADAccountUnlock'
         'Invoke-ADPasswordReset'
         'Invoke-ADSync'
-        'Get-RDConnectedUsers'
+        'Get-RDConnectedUser'
         'Set-RDSessionHostMode'
         'Restart-RDSBroker'
     )
     CmdletsToExport      = @()
     VariablesToExport    = @()
-    AliasesToExport      = @()
+    AliasesToExport      = @(
+        'Get-ADDisabledUsers'
+        'Get-RDConnectedUsers'
+    )
 
     # Requirements
     PowerShellVersion    = '7.4'

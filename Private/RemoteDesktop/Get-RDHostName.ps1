@@ -1,4 +1,4 @@
-function Get-RDHosts {
+function Get-RDHostName {
     [OutputType([string[]])]
     param(
         [Parameter(

@@ -1,4 +1,4 @@
-function Get-RDCollections {
+function Get-RDCollectionName {
     [OutputType([string[]])]
     param(
         [Parameter(

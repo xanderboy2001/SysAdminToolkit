@@ -1,4 +1,4 @@
-function Show-MenuInstructions {
+function Show-MenuInstruction {
     <#
     .SYNOPSIS
     Displays instructions for user input in menus.
@@ -15,7 +15,7 @@ function Show-MenuInstructions {
     Array of strings representing input commands that return to the previous menu.
 
     .EXAMPLE
-    Show-MenuInstructions -QuitOptions @('Q','Exit') -BackOptions @('B')
+    Show-MenuInstruction -QuitOptions @('Q','Exit') -BackOptions @('B')
     # Displays input instructions for quit and back options.
 
     .NOTES

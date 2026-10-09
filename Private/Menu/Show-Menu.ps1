@@ -4,7 +4,7 @@ function Show-Menu {
     Displays a menu with header, options, and handles user selection.
 
     .DESCRIPTION
-    Combines Show-MenuHeader, Show-MenuOptions, and Read-MenuSelection to display a menu.
+    Combines Show-MenuHeader, Show-MenuOption, and Read-MenuSelection to display a menu.
     Returns a hashtable describing the user's choice, quit, or back action.
 
     .PARAMETER Title
@@ -35,7 +35,7 @@ function Show-Menu {
     )
 
     Show-MenuHeader -Title $Title
-    Show-MenuOptions -Options $Options
+    Show-MenuOption -Options $Options
 
     return Read-MenuSelection -Options $Options -QuitOptions $QuitOptions -BackOptions $BackOptions
 }
