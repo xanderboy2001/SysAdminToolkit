@@ -1,6 +1,8 @@
-$script:ModuleRoot = $PSScriptRoot
-$script:ConfigPath = Join-Path -Path $env:ProgramData -ChildPath "SysAdminToolkit\Config\config.psd1"
-$script:DefaultConfigPath = Join-Path $script:ModuleRoot "Config\config.defaults.psd1"
+$Script:ModuleRoot = $PSScriptRoot
+$Script:ConfigPath = Join-Path -Path $env:ProgramData -ChildPath "SysAdminToolkit\Config\config.psd1"
+$Script:DefaultConfigPath = Join-Path $script:ModuleRoot "Config\config.defaults.psd1"
+# Set by Initialize-ToolkitConfig when the configuration must not be written (see Save-ToolkitConfig)
+$Script:ConfigWriteBlockReason = $null
 Set-StrictMode -Version 3.0
 
 # Load private helpers first, then public commands. A file that fails to load fails the import loudly instead

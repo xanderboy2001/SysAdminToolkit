@@ -27,6 +27,10 @@ function Save-ToolkitConfig {
         [hashtable]$Config
     )
 
+    if ($Script:ConfigWriteBlockedReason) {
+        throw "The configuration could not be saved. $Script:ConfigWriteBlockedReason"
+    }
+
     $builder = [System.Text.StringBuilder]::new()
     $null = $builder.AppendLine('@{')
     foreach ($key in ($Config.Keys | Sort-Object)) {
@@ -46,7 +50,11 @@ function Save-ToolkitConfig {
     $null = $builder.Append("}")
 
     if ($PSCmdlet.ShouldProcess($script:ConfigPath, 'Write toolkit configuration')) {
-        Set-Content -LiteralPath $script:ConfigPath -Value $builder.ToString() -Encoding utf8 -ErrorAction Stop
+        try {
+            Set-Content -LiteralPath $script:ConfigPath -Value $builder.ToString() -Encoding utf8 -ErrorAction Stop
+        } catch [System.UnauthorizedAccessException] {
+            throw "Saving the configuration requires an elevated session (Run as administrator)."
+        }
         $script:ToolkitConfig = $Config
     }
 }
