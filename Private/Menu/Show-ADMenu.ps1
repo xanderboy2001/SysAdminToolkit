@@ -48,7 +48,7 @@ function Show-ADMenu {
             Invoke-ADSync
         }
         4 {
-            Get-ADDisabledUsers
+            Get-ADDisabledUser
         }
     }
 }

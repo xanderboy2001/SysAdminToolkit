@@ -1,5 +1,9 @@
-function Get-ExcludedOUPaths {
+function Get-ExcludedOUPath {
+    [CmdletBinding()]
     [OutputType([string[]])]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
+        Justification = 'Interactive prompt; output is for the operator, not the pipeline.')]
+    param()
 
     $OUPattern = '^((OU=[^,]+,)+)(DC=[^,]+,DC=[^,]+)$'
 
@@ -18,7 +22,7 @@ function Get-ExcludedOUPaths {
         }
 
         $Exclusions = $RawInput -split ';' |
-            Where-Object { $_ -Match '\S' } |
+            Where-Object { $_ -match '\S' } |
             ForEach-Object { $_.Trim() }
 
         $AllValid = $true
@@ -38,32 +42,4 @@ function Get-ExcludedOUPaths {
     until ($AllValid)
 
     return $Exclusions
-}
-
-function Get-ADDisabledUsers {
-    [CmdletBinding()]
-    param(
-        [ValidateNotNullOrWhiteSpace()]
-        [string[]]$Exclusions,
-
-        [ValidateNotNullOrWhiteSpace()]
-        [string]$SearchBase
-    )
-
-    if (-not $Exclusions) {
-        $Exclusions = Get-ExcludedOUPaths
-    }
-
-    $GetADUserParams = @{
-        Filter = "Enabled -eq 'False'"
-    }
-
-    if ($SearchBase) {
-        $GetADUserParams["SearchBase"] = $SearchBase
-    }
-
-    Get-ADUser @GetADUserParams | Where-Object {
-        $dn = $_.DistinguishedName
-        -not ($Exclusions | Where-Object { $dn -like "*,$_" })
-    }
 }

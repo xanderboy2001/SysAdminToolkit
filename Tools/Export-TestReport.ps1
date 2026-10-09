@@ -75,24 +75,42 @@ function Add-ErrorDetail {
 # --- PSScriptAnalyzer (first, one file at a time) ---------------------------------------------------------------
 $findings = [System.Collections.Generic.List[object]]::new()
 $analyzerErrors = [System.Collections.Generic.List[pscustomobject]]::new()
+$analyzerRetries = [System.Collections.Generic.List[string]]::new()
+$maxAttempts = 3
 
 $sourceFiles = Get-ChildItem -Path $repoRoot -Include '*.ps1', '*.psm1', '*.psd1' -Recurse -File
 foreach ($file in $sourceFiles) {
-    $fileErrors = $null
-    try {
-        $result = Invoke-ScriptAnalyzer -Path $file.FullName -Settings $settingsPath `
-            -ErrorAction SilentlyContinue -ErrorVariable fileErrors
-        foreach ($finding in $result) {
-            $findings.Add($finding)
+    for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+        $fileErrors = $null
+        $result = $null
+        $analyzerParams = @{
+            Path          = $file.FullName
+            Settings      = $settingsPath
+            ErrorAction   = 'SilentlyContinue'
+            ErrorVariable = 'fileErrors'
         }
-    } catch {
-        $fileErrors = @($_)
+        try {
+            $result = Invoke-ScriptAnalyzer @analyzerParams
+        } catch {
+            $fileErrors = @($_)
+        }
+        if (-not $fileErrors) {
+            break
+        }
     }
-    foreach ($err in $fileErrors) {
-        $analyzerErrors.Add([pscustomobject]@{
-                File    = ConvertTo-RelativePath $file.FullName
-                Message = $err.Exception.Message
-            })
+
+    foreach ($finding in $result) {
+        $findings.Add($finding)
+    }
+    if ($fileErrors) {
+        foreach ($err in $fileErrors) {
+            $analyzerErrors.Add([pscustomobject]@{
+                    File    = ConvertTo-RelativePath $file.FullName
+                    Message = $err.Exception.Message
+                })
+        }
+    } elseif ($attempt -gt 1) {
+        $analyzerRetries.Add("$(ConvertTo-RelativePath $file.FullName) (succeeded on attempt $attempt)")
     }
 }
 
@@ -135,6 +153,13 @@ if ($analyzerErrors.Count -gt 0) {
     foreach ($item in $analyzerErrors) {
         $report.Add("| $($item.File) | $(Format-Cell $item.Message) |")
     }
+}
+
+if ($analyzerRetries.Count -gt 0) {
+    $report.Add('')
+    $report.Add('## Analyzer retries (results complete)')
+    $report.Add('')
+    $analyzerRetries | ForEach-Object { $report.Add("- $_") }
 }
 
 $report.Add('')

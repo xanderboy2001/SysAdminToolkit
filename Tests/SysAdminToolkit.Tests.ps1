@@ -64,12 +64,12 @@ Describe 'Module manifest and public API' {
 
     It 'exports exactly the documented public commands' {
         $expected = @(
-            'Get-ADDisabledUsers', 'Get-BatteryReport', 'Get-RDConnectedUsers', 'Invoke-ADAccountDisable',
+            'Get-ADDisabledUser', 'Get-BatteryReport', 'Get-RDConnectedUser', 'Invoke-ADAccountDisable',
             'Invoke-ADAccountUnlock', 'Invoke-ADPasswordReset', 'Invoke-ADSync', 'Open-PrinterWebInterface',
             'Restart-RDSBroker', 'Set-RDSessionHostMode', 'Show-ReachabilityMenu', 'Start-ToolkitMenu',
             'Stop-FileLock', 'Test-ComputerReachability'
         ) | Sort-Object
-        $actual = (Get-Command -Module SysAdminToolkit).Name | Sort-Object
+        $actual = (Get-Command -Module SysAdminToolkit -CommandType Function).Name | Sort-Object
         $actual | Should -Be $expected
     }
 
@@ -85,6 +85,15 @@ Describe 'Module manifest and public API' {
         'Invoke-ADAccountUnlock', 'Invoke-ADPasswordReset'
     ) {
         (Get-Command -Name $_).Parameters.Keys | Should -Contain 'WhatIf'
+    }
+
+    It 'keeps the pre-0.1 plural names working as aliases' -ForEach @(
+        @{ Alias = 'Get-ADDisabledUsers'; Target = 'Get-ADDisabledUser' }
+        @{ Alias = 'Get-RDConnectedUsers'; Target = 'Get-RDConnectedUser' }
+    ) {
+        $command = Get-Command -Name $Alias -Module SysAdminToolkit
+        $command.CommandType | Should -Be 'Alias'
+        $command.ResolvedCommand.Name | Should -Be $Target
     }
 }
 
@@ -135,7 +144,7 @@ Describe 'Expand-IPRange' {
     It 'handles a range that crosses 128.0.0.0' {
         InModuleScope SysAdminToolkit {
             Expand-IPRange -StartIPAddress '127.255.255.255' -EndIPAddress '128.0.0.1' |
-                Should -be @('127.255.255.255', '128.0.0.0', '128.0.0.1')
+                Should -Be @('127.255.255.255', '128.0.0.0', '128.0.0.1')
         }
     }
 
@@ -435,5 +444,48 @@ Describe 'Save-ToolkitConfig' {
                 $script:ToolkitConfig = $originalConfig
             }
         }
+    }
+}
+
+Describe 'Function layout' {
+    It 'defines each top-level function exactly once' {
+        $root = Join-Path $PSScriptRoot '..'
+        $files = Get-ChildItem -Path "$root/Private", "$root/Public" -Filter '*.ps1' -Recurse
+        $parser = [System.Management.Automation.Language.Parser]
+        $definitions = foreach ($file in $files) {
+            $fileAst = $parser::ParseFile($file.FullName, [ref]$null, [ref]$null)
+            $fileAst.FindAll(
+                { $args[0] -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $false
+            ) | ForEach-Object { $_.Name }
+        }
+        $definitions | Group-Object | Where-Object Count -GT 1 | Select-Object -ExpandProperty Name |
+            Should -BeNullOrEmpty
+    }
+
+    It 'names every file after the single function it defines' {
+        $root = Join-Path $PSScriptRoot '..'
+        $parser = [System.Management.Automation.Language.Parser]
+        $getFileParams = @{
+            Path    = "$root/Private", "$root/Public"
+            Filter  = "*.ps1"
+            Recurse = $true
+        }
+        $mismatches = foreach ($file in Get-ChildItem @getFileParams) {
+            $fileAst = $parser::ParseFile($file.FullName, [ref]$null, [ref]$null)
+            $names = @($fileAst.FindAll(
+                    { $args[0] -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $false
+                ).Name)
+            if ($names.Count -ne 1 -or $names[0] -cne $file.BaseName) {
+                "$($file.Name): $($names -join ', ')"
+            }
+        }
+        $mismatches | Should -BeNullOrEmpty
+    }
+
+    It 'keeps exactly the exported commands in Public/' {
+        $root = Join-Path $PSScriptRoot '..'
+        $publicNames = (Get-ChildItem -Path "$root/Public" -Filter '*.ps1' -Recurse).BaseName | Sort-Object
+        $exported = (Import-PowerShellDataFile -Path $script:manifestPath).FunctionsToExport | Sort-Object
+        $publicNames | Should -Be $exported
     }
 }

@@ -1,113 +1,3 @@
-function Select-RDSessionCollection {
-    <#
-    .SYNOPSIS
-    Prompts the user to select a Remote Desktop session collection from a list.
-
-    .DESCRIPTION
-    Displays a numbered list of the provided session collection names and prompts the user to enter a
-    corresponding number. Continues prompting until a valid selection is made. Returns the name of the
-    selected collection.
-
-    .PARAMETER Collections
-    An array of session collection name strings to present to the user.
-
-    .EXAMPLE
-    $collection = Select-RDSessionCollection -Collection @('desktops', 'apps')
-    # Displays a numbered list and returns the name of the collection the user selects.
-
-    .OUTPUTS
-    System.String. The name of the selected session collection.
-
-    .NOTES
-    Author: Alexander Christian
-    #>
-    [CmdletBinding()]
-    [OutputType([string])]
-    param(
-        [Parameter(
-            Mandatory,
-            HelpMessage = "An array of session collection names to present for user selection."
-        )]
-        [string[]]$Collections
-    )
-
-    for ($i = 0; $i -lt $Collections.Count; $i++) {
-        Write-Host "[$($i + 1)] $($Collections[$i])"
-    }
-
-    $selection = 0
-    do {
-        $rawInput = Read-Host "Select a Remote Desktop Server Collection to manage (1-$($Collections.Count))"
-        $isNumber = [int]::TryParse($rawInput, [ref]$selection)
-    } until ($isNumber -and $selection -ge 1 -and $selection -le $Collections.Count)
-
-    return $Collections[$selection - 1]
-}
-
-function Select-Server {
-    <#
-    .SYNOPSIS
-    Prompts the user to select one or more Remote Desktop session hosts from a list.
-
-    .DESCRIPTION
-    Displays a numbered list of session hosts with their current connection state.
-    Hosts with new connections allowed are shown in green; disabled hosts in red.
-    The user may enter a comma-separated list of numbers to select multiple hosts.
-    Continues prompting until all entered indices are within the valid range.
-    Returns an array of the selected server objects.
-
-    .PARAMETER Servers
-    An array of objects with SessionHost and NewConnectionAllowed properties, as returned by Get-RDSessionHost
-    with computed properties applied.
-
-    .EXAMPLE
-    $selected = Select-Server -Servers $sessionHosts
-    # Displays the session host list and returns the objects the user selected.
-
-    .OUTPUTS
-    System.Object[]. The selected session host objects.
-
-    .NOTES
-    Author: Alexander Christian
-    #>
-    [CmdletBinding()]
-    [OutputType([psobject[]])]
-    param(
-        [Parameter(
-            Mandatory,
-            HelpMessage = "Session host objects with SessionHost and NewConnectionAllowed properties."
-        )]
-        [PSObject[]]$Servers
-    )
-
-    for ($i = 0; $i -lt $Servers.Count; $i++) {
-        $msg = "[$($i + 1)] $($Servers[$i].SessionHost) (Connections Allowed: " +
-        "$($Servers[$i].NewConnectionAllowed))"
-        if ($Servers[$i].NewConnectionAllowed) {
-            Write-Host $msg -ForegroundColor Green
-        } else {
-            Write-Host $msg -ForegroundColor Red
-        }
-    }
-
-    do {
-        $rawInput = Read-Host "Select one or more Remote Desktop Session Hosts to toggle"
-        $tokens = @($rawInput -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
-        $isValid = $tokens.Count -gt 0
-        $indicies = foreach ($token in $tokens) {
-            $number = 0
-            if ([int]::TryParse($token, [ref]$number) -and $number -ge 1 -and $number -le $Servers.Count) {
-                $number - 1
-            } else {
-                $isValid = $false
-            }
-        }
-    } until ($isValid)
-
-    # De-duplicate so that '1,1' does not toggle the same host twice.
-    return $indicies | Select-Object -Unique | ForEach-Object { $Servers[$_] }
-}
-
 function Set-RDSessionHostMode {
     <#
     .SYNOPSIS
@@ -135,6 +25,8 @@ function Set-RDSessionHostMode {
     Author: Alexander Christian
     #>
     [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'Medium')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
+        Justification = 'Interactive wizard; to be split into core command + UI. See issue #1 (F-21).')]
     param(
         [string]$ConnectionBroker
     )
@@ -176,14 +68,14 @@ function Set-RDSessionHostMode {
     try {
         Write-Host "Getting list of Remote Desktop Session Hosts in $SelectedCollection..." -ForegroundColor Cyan
         $SessionHostProperty = @{
-            Name="SessionHost"
-            Expression= {
+            Name       = "SessionHost"
+            Expression = {
                 $_.SessionHost.toLower()
             }
         }
         $NewConnectionAllowedProperty = @{
-            Name="NewConnectionAllowed"
-            Expression= {
+            Name       = "NewConnectionAllowed"
+            Expression = {
                 if ($_.NewConnectionAllowed -eq 'Yes') {
                     $true
                 } else {
@@ -192,9 +84,9 @@ function Set-RDSessionHostMode {
             }
         }
         $SessionHostParams = @{
-            ConnectionBroker    = $ConnectionBrokerFQDN
-            CollectionName      = $SelectedCollection
-            ErrorAction         = 'Stop'
+            ConnectionBroker = $ConnectionBrokerFQDN
+            CollectionName   = $SelectedCollection
+            ErrorAction      = 'Stop'
         }
         $Servers = Get-RDSessionHost @SessionHostParams |
             Select-Object -Property $SessionHostProperty, $NewConnectionAllowedProperty |
@@ -230,10 +122,10 @@ function Set-RDSessionHostMode {
                 $msg = "New connections are enabled on $($server.SessionHost). Disabling new connections..."
                 Write-Host $msg -ForegroundColor Cyan
                 $SetRDHostParams = @{
-                    ConnectionBroker = $ConnectionBrokerFQDN
-                    SessionHost = $server.SessionHost
+                    ConnectionBroker     = $ConnectionBrokerFQDN
+                    SessionHost          = $server.SessionHost
                     NewConnectionAllowed = 'No'
-                    ErrorAction = 'Stop'
+                    ErrorAction          = 'Stop'
                 }
                 Set-RDSessionHost @SetRDHostParams
                 Write-Host "Disabled new connections on $($server.SessionHost)" -ForegroundColor Green
@@ -245,10 +137,10 @@ function Set-RDSessionHostMode {
                 $msg = "New Connections are disabled on $($server.SessionHost). Enabling new connections..."
                 Write-Host $msg -ForegroundColor Cyan
                 $SetRDHostParams = @{
-                    ConnectionBroker = $ConnectionBrokerFQDN
-                    SessionHost = $server.SessionHost
+                    ConnectionBroker     = $ConnectionBrokerFQDN
+                    SessionHost          = $server.SessionHost
                     NewConnectionAllowed = 'Yes'
-                    ErrorAction = 'Stop'
+                    ErrorAction          = 'Stop'
                 }
                 Set-RDSessionHost @SetRDHostParams
                 Write-Host "Enabled new connections on $($server.SessionHost)" -ForegroundColor Green

@@ -17,6 +17,8 @@ function Invoke-ADAccountUnlock {
     Author: Alexander Christian
     #>
     [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'Medium')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
+        Justification = 'Interactive wizard; to be split into core command + UI. See issue #1 (F-21).')]
     param()
 
     Show-MenuHeader -Title 'Unlock Active Directory Account'

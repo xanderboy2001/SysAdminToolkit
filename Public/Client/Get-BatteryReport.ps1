@@ -67,26 +67,26 @@ function Get-BatteryReport {
                 }
 
                 [pscustomobject]@{
-                    ComputerName = $env:COMPUTERNAME
-                    DesignCapacity = [int]$battery.DesignCapacity
+                    ComputerName       = $env:COMPUTERNAME
+                    DesignCapacity     = [int]$battery.DesignCapacity
                     FullChargeCapacity = [int]$battery.FullChargeCapacity
-                    CapacityPercent = $capacityPercent
+                    CapacityPercent    = $capacityPercent
                 }
             } catch {
                 Write-Warning "Error on '$env:COMPUTERNAME': $($_.Exception.Message)"
                 [pscustomobject]@{
-                    ComputerName = $env:COMPUTERNAME
-                    DesignCapacity = $null
+                    ComputerName       = $env:COMPUTERNAME
+                    DesignCapacity     = $null
                     FullChargeCapacity = $null
-                    CapacityPercent = $null
+                    CapacityPercent    = $null
                 }
             }
         }
 
         $invokeParams = @{
             ComputerName = $ComputerName
-            ScriptBlock = $batteryScript
-            ErrorAction = "SilentlyContinue"
+            ScriptBlock  = $batteryScript
+            ErrorAction  = "SilentlyContinue"
         }
         $result = Invoke-Command @invokeParams
 
