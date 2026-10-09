@@ -107,6 +107,58 @@ Select menu options using the number keys (e.g. `1` for Server), or use `Q`, `Qu
 
 ---
 
+## Securing the configuration
+
+SysAdminToolkit uses one machine-wide configuration file:
+`C:\ProgramData\SysAdminToolkit\Config\config.psd1`. It decides which executable `Stop-FileLock` runs and
+which servers the toolkit contacts and reboots, so only administrators may change it.
+
+On import, the module checks the folder and the file. If anyone other than Administrators, SYSTEM, or
+TrustedInstaller owns them or can change them, the file is **not loaded**: the module uses default settings,
+refuses to save, and shows a warning.
+
+- **Reading** settings works in any session.
+- **Saving** settings (Config menu, `Open-PrinterWebInterface`) requires an elevated session
+  (Run as administrator).
+- **New server:** import the module once from an elevated session. The folder is created with the correct
+  permissions automatically.
+
+### Repairing an existing folder
+
+Folders created by earlier versions inherit permissions from `C:\ProgramData`, which let standard users create
+and change files. To repair one, open an **elevated** PowerShell session on the server and:
+
+1. Check the current settings. Someone may have changed them; confirm every value is what you expect:
+
+   ```powershell
+   Get-Content "$env:ProgramData\SysAdminToolkit\Config\config.psd1"
+   ```
+
+2. Apply the permissions:
+
+   ```powershell
+   Import-Module SysAdminToolkit -WarningAction SilentlyContinue
+   & (Get-Module SysAdminToolkit) { Protect-ToolkitConfigDirectory -Path (Split-Path $script:ConfigPath) }
+   ```
+
+3. Confirm: `Import-Module SysAdminToolkit -Force` shows no warning, and
+   `icacls "$env:ProgramData\SysAdminToolkit\Config"` lists only Administrators and SYSTEM with full control (F)
+   and Users with read & execute (RX).
+
+### Where to install the module
+
+Install the module where only administrators can write, for example
+`C:\Program Files\PowerShell\Modules\SysAdminToolkit`. Protecting the configuration does not help if a
+standard user can edit the module's own code.
+
+### Sysinternals
+
+The default `SysinternalsPath` is `C:\Program Files\Sysinternals`. Copy `handle.exe` there (it must carry a
+valid Microsoft signature). Existing configurations keep their current value; change it through the Config menu
+in an elevated session.
+
+---
+
 ## Example
 
 ```powershell

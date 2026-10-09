@@ -1,59 +1,99 @@
 function Initialize-ToolkitConfig {
     <#
     .SYNOPSIS
-    Initializes the toolkit configuration, merging defaults with any existing saved values.
+    Loads the machine-wide toolkit configuration, merging in default values for missing keys.
 
     .DESCRIPTION
-    Loads the default configuration from config.defaults.psd1. If a config.psd1 file already exists, it is loaded
-    and any missing keys are backfilled with their default values. If no config.psd1 exists, the config directory
-    is created if needed and the defaults are used as the initial configuration. The file is only written when it
-    is new or keys were backfilled. The resulting configuration is saved to disk and stored in
-    $script:ToolkitConfig.
+    The configuration lives on one machine-wide file (by default C:\ProgramData\SysAdminToolkit\Config\config.psd1)
+    shared by every administrator on the server. Because it controls which executable Stop-FileLock runs and
+    which servers the toolkit reboots, it is only loaded when Test-ToolkitConfigTrust confirms that only
+    administrators can change the folder and the file.
 
-    .EXAMPLE
-    Initialize-ToolkitConfig
-    # Called automatically during module import to setup $script:ToolkitConfig.
+    - Folder missing, elevated session: the folder is created with administrator-only write access.
+    - Folder missing, not elevated: defaults are used for this session; nothing is created.
+    - Folder or file not protected: defaults are used for this session and saving is blocked.
+    - File missing: defaults are used and saved (saving requires an elevated session).
+    - File present: loaded; missing keys are filled from defaults and saved when possible.
+    - File not a valid .psd1: defaults are used, the file is left untouched, and an error is thrown.
+
+    In every case $script:ToolkitConfig is set, so commands never see a missing configuration.
+    $script:ConfigWriteBlockedReason explains why Save-ToolkitConfig will refuse to write, or is $null.
 
     .NOTES
     Author: Alexander Christian
-    This function is called once during module load in SysAdminToolkit.psm1.
+    Called once during module import in SysAdminToolkit.psm1
     #>
     [CmdletBinding()]
     param()
+
     $defaults = @{}
     (Import-PowerShellDataFile -LiteralPath $script:DefaultConfigPath -ErrorAction Stop).GetEnumerator() |
         ForEach-Object {
             $defaults[$_.Key] = $_.Value
         }
 
-    $needsSave = $false
-    if (Test-Path -LiteralPath $script:ConfigPath) {
-        $existing = @{}
-        try {
-            $saved = Import-PowerShellDataFile -LiteralPath $script:ConfigPath -ErrorAction Stop
-        } catch {
-            throw "The configuration file '$script:ConfigPath' is not a valid .psd1 file. " +
-            "Fix it, or delete it to recreate it from defaults. Parser error: $($_.Exception.Message)"
-        }
-        $saved.GetEnumerator() | ForEach-Object { $existing[$_.Key] = $_.Value }
+    # Fail safe: until a trusted file has been loaded, run on defaults and do not write anything.
+    $Script:ToolkitConfig = $defaults.Clone()
+    $Script:ConfigWriteBlockedReason = $null
 
-        foreach ($key in $defaults.Keys) {
-            if (-not $existing.ContainsKey($key)) {
-                $existing[$key] = $defaults[$key]
-                $needsSave = $true
-            }
+    $configDir = Split-Path -Path $Script:ConfigPath -Parent
+    if (-not (Test-Path -LiteralPath $configDir)) {
+        if (-not (Test-AdministratorSession)) {
+            $Script:ConfigWriteBlockedReason = "The configuration folder '$configDir' does not exist yet. " +
+            "Import the module once from an elevated session (Run as administrator) to create it."
+            Write-Warning "SysAdminToolkit: $Script:ConfigWriteBlockedReason Using default settings."
+            return
         }
-        $script:ToolkitConfig = $existing
-    } else {
-        $configDir = Split-Path -Path $script:ConfigPath -Parent
-        if (-not (Test-Path -LiteralPath $configDir)) {
-            $null = New-Item -ItemType Directory -Path $configDir -ErrorAction Stop
-        }
-        $script:ToolkitConfig = $defaults
-        $needsSave = $true
+        Protect-ToolkitConfigDirectory -Path $configDir -Confirm:$false
     }
 
-    if ($needsSave) {
-        Save-ToolkitConfig -Config $script:ToolkitConfig
+    $untrusted = foreach ($path in @($configDir, $Script:ConfigPath)) {
+        if (Test-Path -LiteralPath $path) {
+            $trust = Test-ToolkitConfigTrust -Path $path
+            if (-not $trust.IsTrusted) {
+                "'$path' ($($trust.Reasons -join '; '))"
+            }
+        }
+    }
+    if ($untrusted) {
+        $Script:ConfigWriteBlockedReason = "Non-administrators can change the configuration: " +
+        ($untrusted -join ', ') + ". See 'Securing the configuration' in README.md"
+        Write-Warning "SysAdminToolkit: $Script:ConfigWriteBlockedReason The file was NOT loaded; using defaults."
+        return
+    }
+
+    if (-not (Test-Path -LiteralPath $Script:ConfigPath)) {
+        try {
+            Save-ToolkitConfig -Config $defaults
+        } catch {
+            Write-Warning ("SysAdminToolkit: using default settings; they could not be saved: " +
+                $_.Exception.Message)
+        }
+        return
+    }
+
+    try {
+        $saved = Import-PowerShellDataFile -LiteralPath $Script:ConfigPath -ErrorAction Stop
+    } catch {
+        throw "The configuration file '$Script:ConfigPath' is not a valid .psd1 file. " +
+        "Fix it, or delete it to recreate it from defaults. Parser error: $($_.Exception.Message)"
+    }
+
+    $existing = @{}
+    $saved.GetEnumerator() | ForEach-Object { $existing[$_.Key] = $_.Value }
+    $missingKeys = @($defaults.Keys | Where-Object { -not $existing.ContainsKey($_) } | Sort-Object)
+    foreach ($key in $missingKeys) {
+        $existing[$key] = $defaults[$key]
+    }
+    $Script:ToolkitConfig = $existing
+
+    if ($missingKeys.Count -gt 0) {
+        try {
+            Save-ToolkitConfig -Config $existing
+        } catch {
+            # The new keys still work for this session; they are saved the next time an elevated session imports.
+            Write-Warning ("SysAdminToolkit: new settings ($($missingKeys -join ', ')) use their defaults but " +
+                "could not be saved: $($_.Exception.Message)")
+        }
     }
 }

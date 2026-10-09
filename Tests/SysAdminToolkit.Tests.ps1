@@ -9,6 +9,10 @@ param()
 BeforeDiscovery {
     $script:sourceFiles = Get-ChildItem -Path (Join-Path $PSscriptRoot '..') -Include '*.ps1', '*.psm1', '*.psd1' `
         -Recurse -File | Where-Object { $_.FullName -notmatch '[\\/]Tests[\\/]' }
+
+    $currentIdentity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+    $currentPrincipal = [System.Security.Principal.WindowsPrincipal]::new($currentIdentity)
+    $script:isElevated = $currentPrincipal.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
 BeforeAll {
@@ -346,48 +350,67 @@ Describe 'Get-ValidADUser' {
     }
 }
 
-Describe 'Initialize-ToolkitConfig' {
-    It 'reports a corrupt config file clearly and does not overwrite it' {
+Describe 'Toolkit configuration' {
+    BeforeEach {
         InModuleScope SysAdminToolkit {
-            $originalPath = $script:ConfigPath
-            try {
-                $script:ConfigPath = Join-Path $TestDrive 'config.psd1'
+            # Every test points the module at $TestDrive; restore the real state afterwards.
+            $script:savedConfigPath = $script:ConfigPath
+            $script:savedToolkitConfig = $script:ToolkitConfig
+            $script:savedBlockedReason = $script:ConfigWriteBlockedReason
+            $script:ConfigWriteBlockedReason = $null
+        }
+    }
+
+    AfterEach {
+        InModuleScope SysAdminToolkit {
+            $script:ConfigPath = $script:savedConfigPath
+            $script:ToolkitConfig = $script:savedToolkitConfig
+            $script:ConfigWriteBlockedReason = $script:savedBlockedReason
+        }
+    }
+
+    Context 'Initialize-ToolkitConfig with a protected folder' {
+        BeforeEach {
+            # Permissions are tested separately; here the folder is treated as protected and the session as
+            # elevated, so the loading logic can be tested in $TestDrive.
+            Mock -ModuleName SysAdminToolkit Test-ToolkitConfigTrust {
+                [pscustomobject]@{ Path = $Path; IsTrusted = $true; Reasons = @() }
+            }
+            Mock -ModuleName SysAdminToolkit Test-AdministratorSession { $true }
+            Mock -ModuleName SysAdminToolkit Protect-ToolkitConfigDirectory {
+                $null = New-Item -ItemType Directory -Path $Path -Force
+            }
+        }
+
+        It 'reports a corrupt config file clearly, does not overwrite it, and keeps defaults loaded' {
+            InModuleScope SysAdminToolkit {
+                $script:ConfigPath = Join-Path $TestDrive 'corrupt\config.psd1'
+                $null = New-Item -ItemType Directory -Path (Split-Path $script:ConfigPath) -Force
                 Set-Content -LiteralPath $script:ConfigPath -Value 'not a hashtable'
 
                 { Initialize-ToolkitConfig } | Should -Throw '*is not a valid .psd1 file*'
 
                 Get-Content -LiteralPath $script:ConfigPath -Raw | Should -BeLike 'not a hashtable*'
-            } finally {
-                $script:ConfigPath = $originalPath
+                $script:ToolkitConfig | Should -Not -BeNullOrEmpty
             }
         }
-    }
 
-    It 'creates the file from defaults when it does not exist' {
-        InModuleScope SysAdminToolkit {
-            $originalPath = $script:ConfigPath
-            $originalConfig = $script:ToolkitConfig
-            try {
+        It 'creates a protected folder and the file from defaults when neither exists' {
+            InModuleScope SysAdminToolkit {
                 $script:ConfigPath = Join-Path $TestDrive 'new\config.psd1'
 
                 Initialize-ToolkitConfig
 
+                Should -Invoke Protect-ToolkitConfigDirectory -Times 1 -Exactly
                 $defaults = Import-PowerShellDataFile -LiteralPath $script:DefaultConfigPath
                 $loaded = Import-PowerShellDataFile -LiteralPath $script:ConfigPath
                 $loaded.Keys.Count | Should -Be $defaults.Keys.Count
                 $loaded.RDMaxRetries | Should -Be $defaults.RDMaxRetries
-            } finally {
-                $script:ConfigPath = $originalPath
-                $script:ToolkitConfig = $originalConfig
             }
         }
-    }
 
-    It 'does not rewrite an existing complete config file' {
-        InModuleScope SysAdminToolkit {
-            $originalPath = $script:ConfigPath
-            $originalConfig = $script:ToolkitConfig
-            try {
+        It 'does not rewrite an existing complete config file' {
+            InModuleScope SysAdminToolkit {
                 $script:ConfigPath = Join-Path $TestDrive 'existing\config.psd1'
                 Initialize-ToolkitConfig
                 $before = (Get-Item -LiteralPath $script:ConfigPath).LastWriteTimeUtc
@@ -396,20 +419,64 @@ Describe 'Initialize-ToolkitConfig' {
                 Initialize-ToolkitConfig
 
                 (Get-Item -LiteralPath $script:ConfigPath).LastWriteTimeUtc | Should -Be $before
-            } finally {
-                $script:ConfigPath = $originalPath
-                $script:ToolkitConfig = $originalConfig
+            }
+        }
+
+        It 'keeps new default keys in memory when they cannot be saved' {
+            InModuleScope SysAdminToolkit {
+                $script:ConfigPath = Join-Path $TestDrive 'backfill\config.psd1'
+                $null = New-Item -ItemType Directory -Path (Split-Path $script:ConfigPath) -Force
+                Set-Content -LiteralPath $script:ConfigPath -Value "@{ RDBrokerServer = 'broker1' }"
+                Mock Save-ToolkitConfig { throw 'Saving the configuration requires an elevated session.' }
+
+                Initialize-ToolkitConfig -WarningVariable initWarnings -WarningAction SilentlyContinue
+
+                $script:ToolkitConfig.RDBrokerServer | Should -Be 'broker1'
+                $script:ToolkitConfig.ContainsKey('ADSyncTimeoutSecs') | Should -BeTrue
+                "$initWarnings" | Should -BeLike '*could not be saved*'
             }
         }
     }
-}
 
-Describe 'Save-ToolkitConfig' {
-    It 'round-trips quotes (including typographic quotes) and integers' {
-        InModuleScope SysAdminToolkit {
-            $originalPath = $script:ConfigPath
-            $originalConfig = $script:ToolkitConfig
-            try {
+    Context 'Initialize-ToolkitConfig without a protected folder' {
+        It 'ignores the file, uses defaults, and blocks saving when non-administrators can change it' {
+            InModuleScope SysAdminToolkit {
+                Mock Test-ToolkitConfigTrust {
+                    [pscustomobject]@{ Path = $Path; IsTrusted = $false; Reasons = @("'Users' can modify it") }
+                }
+                $script:ConfigPath = Join-Path $TestDrive 'tampered\config.psd1'
+                $null = New-Item -ItemType Directory -Path (Split-Path $script:ConfigPath) -Force
+                Set-Content -LiteralPath $script:ConfigPath -Value "@{ SysinternalsPath = '\\attacker\share' }"
+
+                Initialize-ToolkitConfig -WarningVariable initWarnings -WarningAction SilentlyContinue
+
+                $defaults = Import-PowerShellDataFile -LiteralPath $script:DefaultConfigPath
+                $script:ToolkitConfig.SysinternalsPath | Should -Be $defaults.SysinternalsPath
+                "$initWarnings" | Should -BeLike '*NOT loaded*'
+                { Save-ToolkitConfig -Config @{ PrintServer = 'x' } } | Should -Throw '*could not be saved*'
+                Get-Content -LiteralPath $script:ConfigPath -Raw | Should -BeLike '*attacker*'
+            }
+        }
+
+        It 'does not create the folder from a non-elevated session' {
+            InModuleScope SysAdminToolkit {
+                Mock Test-AdministratorSession { $false }
+                Mock Protect-ToolkitConfigDirectory { }
+                $script:ConfigPath = Join-Path $TestDrive 'not-elevated\config.psd1'
+
+                Initialize-ToolkitConfig -WarningAction SilentlyContinue
+
+                Should -Invoke Protect-ToolkitConfigDirectory -Times 0 -Exactly
+                Test-Path -LiteralPath (Split-Path $script:ConfigPath) | Should -BeFalse
+                $script:ToolkitConfig | Should -Not -BeNullOrEmpty
+                $script:ConfigWriteBlockedReason | Should -BeLike '*elevated session*'
+            }
+        }
+    }
+
+    Context 'Save-ToolkitConfig' {
+        It 'round-trips quotes (including typographic quotes) and integers' {
+            InModuleScope SysAdminToolkit {
                 $script:ConfigPath = Join-Path $TestDrive 'config.psd1'
                 $config = @{
                     PrintServer  = "it's"
@@ -424,25 +491,115 @@ Describe 'Save-ToolkitConfig' {
                 $loaded.Tricky | Should -Be "a$([char]0x2019)b"
                 $loaded.RDMaxRetries | Should -BeOfType [int]
                 $loaded.Keys.Count | Should -Be 3
-            } finally {
-                $script:ConfigPath = $originalPath
-                $script:ToolkitConfig = $originalConfig
+            }
+        }
+
+        It 'does not update in-memory configuration when the write fails' {
+            InModuleScope SysAdminToolkit {
+                $originalConfig = $script:ToolkitConfig
+                $script:ConfigPath = Join-Path $TestDrive 'missing-dir\config.psd1'
+
+                { Save-ToolkitConfig -Config @{ PrintServer = 'new' } } | Should -Throw
+
+                [object]::ReferenceEquals($script:ToolkitConfig, $originalConfig) | Should -BeTrue
+            }
+        }
+
+        It 'refuses to write while saving is blocked' {
+            InModuleScope SysAdminToolkit {
+                $script:ConfigPath = Join-Path $TestDrive 'blocked.psd1'
+                $script:ConfigWriteBlockedReason = 'test reason'
+
+                { Save-ToolkitConfig -Config @{ PrintServer = 'x' } } | Should -Throw '*test reason*'
+
+                Test-Path -LiteralPath $script:ConfigPath | Should -BeFalse
             }
         }
     }
+}
 
-    It 'does not update in-memory configuration when the write fails' {
+Describe 'Test-ToolkitConfigTrust' {
+    BeforeEach {
         InModuleScope SysAdminToolkit {
-            $originalPath = $script:ConfigPath
-            $originalConfig = $script:ToolkitConfig
-            try {
-                $script:ConfigPath = Join-Path $TestDrive 'missing-dir\config.psd1'
-                { Save-ToolkitConfig -Config @{ PrintServer = 'new' } } | Should -Throw
-                [object]::ReferenceEquals($script:ToolkitConfig, $originalConfig) | Should -BeTrue
-            } finally {
-                $script:ConfigPath = $originalPath
-                $script:ToolkitConfig = $originalConfig
+            # Builds an in-memory folder security descriptor; Get-Acl is mocked to return it.
+            function script:New-TestAcl {
+                param([string]$OwnerSid, [hashtable[]]$Rules)
+                $acl = [System.Security.AccessControl.DirectorySecurity]::new()
+                $acl.SetOwner([System.Security.Principal.SecurityIdentifier]::new($OwnerSid))
+                foreach ($rule in $Rules) {
+                    $acl.AddAccessRule([System.Security.AccessControl.FileSystemAccessRule]::new(
+                            [System.Security.Principal.SecurityIdentifier]::new($rule.Sid),
+                            [System.Security.AccessControl.FileSystemRights]$rule.Rights,
+                            'ContainerInherit, ObjectInherit', 'None', $rule.Type))
+                }
+                $acl
             }
+            $script:adminsFull = @{ Sid = 'S-1-5-32-544'; Rights = 'FullControl'; Type = 'Allow' }
+            $script:systemFull = @{ Sid = 'S-1-5-18'; Rights = 'FullControl'; Type = 'Allow' }
+            $script:usersRead = @{ Sid = 'S-1-5-32-545'; Rights = 'ReadAndExecute'; Type = 'Allow' }
+            Mock Get-Acl { $script:testAcl }
+        }
+    }
+
+    It 'trusts an Administrators-owned folder that only Administrators and SYSTEM can change' {
+        InModuleScope SysAdminToolkit {
+            $script:testAcl = New-TestAcl -OwnerSid 'S-1-5-32-544' -Rules $adminsFull, $systemFull, $usersRead
+
+            $result = Test-ToolkitConfigTrust -Path 'C:\Fake'
+
+            $result.IsTrusted | Should -BeTrue
+            $result.Reasons | Should -BeNullOrEmpty
+        }
+    }
+
+    It 'does not trust a folder owned by a non-administrator' {
+        InModuleScope SysAdminToolkit {
+            $script:testAcl = New-TestAcl -OwnerSid 'S-1-5-32-545' -Rules $adminsFull, $systemFull, $usersRead
+
+            $result = Test-ToolkitConfigTrust -Path 'C:\Fake'
+
+            $result.IsTrusted | Should -BeFalse
+            "$($result.Reasons)" | Should -BeLike '*owner*'
+        }
+    }
+
+    It 'does not trust a folder that Users can <Rights>' -ForEach @(
+        @{ Rights = 'Modify' }
+        @{ Rights = 'CreateFiles' }
+        @{ Rights = 'Delete' }
+        @{ Rights = 'ChangePermissions' }
+    ) {
+        InModuleScope SysAdminToolkit -Parameters @{ Rights = $Rights } {
+            param($Rights)
+            $usersWrite = @{ Sid = 'S-1-5-32-545'; Rights = $Rights; Type = 'Allow' }
+            $script:testAcl = New-TestAcl -OwnerSid 'S-1-5-32-544' -Rules $adminsFull, $usersWrite
+
+            (Test-ToolkitConfigTrust -Path 'C:\Fake').IsTrusted | Should -BeFalse
+        }
+    }
+
+    It 'ignores Deny entries and CREATOR OWNER entries' {
+        InModuleScope SysAdminToolkit {
+            $usersDeny = @{ Sid = 'S-1-5-32-545'; Rights = 'Modify'; Type = 'Deny' }
+            $creatorOwner = @{ Sid = 'S-1-3-0'; Rights = 'FullControl'; Type = 'Allow' }
+            $script:testAcl = New-TestAcl -OwnerSid 'S-1-5-32-544' -Rules $adminsFull, $usersDeny, $creatorOwner
+
+            (Test-ToolkitConfigTrust -Path 'C:\Fake').IsTrusted | Should -BeTrue
+        }
+    }
+}
+
+Describe 'Protect-ToolkitConfigDirectory (needs an elevated session)' {
+    It 'produces a folder and file that Test-ToolkitConfigTrust accepts' -Skip:(-not $script:isElevated) {
+        InModuleScope SysAdminToolkit {
+            $folder = Join-Path $TestDrive 'protect\Config'
+            $null = New-Item -ItemType Directory -Path $folder -Force
+            Set-Content -LiteralPath (Join-Path $folder 'config.psd1') -Value '@{}'
+
+            Protect-ToolkitConfigDirectory -Path $folder -Confirm:$false
+
+            (Test-ToolkitConfigTrust -Path $folder).IsTrusted | Should -BeTrue
+            (Test-ToolkitConfigTrust -Path (Join-Path $folder 'config.psd1')).IsTrusted | Should -BeTrue
         }
     }
 }
