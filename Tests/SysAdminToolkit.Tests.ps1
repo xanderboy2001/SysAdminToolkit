@@ -632,3 +632,177 @@ Describe 'Function layout' {
         $publicNames | Should -Be $exported
     }
 }
+
+Describe 'Invoke-ADSyncDeltaCycle (runs on the AD Connect server)' {
+    BeforeAll {
+        # ADSync cmdlets only exist on the AD Connect server; create stubs so they can be mocked.
+        # The stubs declare the real parameter names: Mock copies the stub's parameters, so a -ParameterFilter
+        # can only see parameters the stub declares (a catch-all stub hides -PolicyType from the filter).
+        $script:adSyncStubs = @{
+            'Get-ADSyncScheduler'   = { [CmdletBinding()] param() }
+            'Start-ADSyncSyncCycle' = { [CmdletBinding()] param([string]$PolicyType) }
+        }
+        $script:adSyncCommands = @($script:adSyncStubs.Keys)
+        foreach ($commandName in $script:adSyncCommands) {
+            if (-not (Get-Command -Name $commandName -ErrorAction SilentlyContinue)) {
+                $null = New-Item -Path "function:global:$commandName" -Value $script:adSyncStubs[$commandName]
+            }
+        }
+    }
+
+    AfterAll {
+        foreach ($commandName in $script:adSyncCommands) {
+            $stub = Get-Item -Path "function:global:$commandName" -ErrorAction SilentlyContinue
+            if ($stub -and -not $stub.Module) {
+                Remove-Item -Path "function:global:$commandName"
+            }
+        }
+    }
+
+    BeforeEach {
+        InModuleScope SysAdminToolkit {
+            Mock Import-Module { } -ParameterFilter { $Name -eq 'ADSync' }
+            Mock Start-Sleep { }
+            Mock Write-Progress { }
+            Mock Start-ADSyncSyncCycle { }
+            # Each call to Get-ADSyncScheduler returns the next value from this queue.
+            $script:inProgress = [System.Collections.Generic.Queue[bool]]::new()
+            Mock Get-ADSyncScheduler { [pscustomobject]@{ SyncCycleInProgress = $script:inProgress.Dequeue() } }
+        }
+    }
+
+    It 'reports Completed after the cycle starts and then finishes' {
+        InModuleScope SysAdminToolkit {
+            # Not running before start, then running, running, finished.
+            $false, $true, $true, $false | ForEach-Object { $script:inProgress.Enqueue($_) }
+
+            $result = Invoke-ADSyncDeltaCycle -TimeoutSeconds 60 -PollSeconds 1
+
+            $result.Status | Should -Be 'Completed'
+            Should -Invoke Start-ADSyncSyncCycle -Times 1 -Exactly -ParameterFilter { $PolicyType -eq 'Delta' }
+        }
+    }
+
+    It 'does not start a second cycle when one is already running' {
+        InModuleScope SysAdminToolkit {
+            $script:inProgress.Enqueue($true)
+
+            $result = Invoke-ADSyncDeltaCycle
+
+            $result.Status | Should -Be 'AlreadyRunning'
+            Should -Invoke Start-ADSyncSyncCycle -Times 0 -Exactly
+        }
+    }
+
+    It 'stops waiting for the start after StartTimeoutSeconds (regression: used to loop forever)' {
+        InModuleScope SysAdminToolkit {
+            1..10 | ForEach-Object { $script:inProgress.Enqueue($false) }
+
+            $result = Invoke-ADSyncDeltaCycle -StartTimeoutSeconds 3 -PollSeconds 1
+
+            $result.Status | Should -Be 'StartNotObserved'
+            # One check before starting, then three start polls.
+            Should -Invoke Get-ADSyncScheduler -Times 4 -Exactly
+        }
+    }
+
+    It 'stops waiting for completion after TimeoutSeconds (regression: used to loop forever)' {
+        InModuleScope SysAdminToolkit {
+            $script:inProgress.Enqueue($false)
+            1..20 | ForEach-Object { $script:inProgress.Enqueue($true) }
+
+            $result = Invoke-ADSyncDeltaCycle -TimeoutSeconds 5 -PollSeconds 1
+
+            $result.Status | Should -Be 'TimedOut'
+            # One check before starting, one start poll, then five completion polls.
+            Should -Invoke Get-ADSyncScheduler -Times 7 -Exactly
+        }
+    }
+
+    It 'only calls built-in commands and ADSync cmdlets, so it can run remotely' {
+        InModuleScope SysAdminToolkit {
+            $allowedModules = 'Microsoft.PowerShell.Core', 'Microsoft.PowerShell.Utility',
+            'Microsoft.PowerShell.Management'
+            $commandNames = ${function:Invoke-ADSyncDeltaCycle}.Ast.FindAll(
+                { $args[0] -is [System.Management.Automation.Language.CommandAst] }, $true
+            ) | ForEach-Object { $_.GetCommandName() } | Where-Object { $_ } | Sort-Object -Unique
+
+            $notAllowed = foreach ($commandName in $commandNames) {
+                if ($commandName -like '*-ADSync*') {
+                    continue
+                }
+                # -CommandType Cmdlet looks past the mocks defined in BeforeEach to the real cmdlet.
+                $command = Get-Command -Name $commandName -CommandType Cmdlet -ErrorAction SilentlyContinue
+                if (-not $command -or $command.ModuleName -notin $allowedModules) {
+                    $commandName
+                }
+            }
+            $notAllowed | Should -BeNullOrEmpty
+        }
+    }
+}
+
+Describe 'Invoke-ADSync' {
+    BeforeEach {
+        Mock -ModuleName SysAdminToolkit Show-MenuHeader { }
+        Mock -ModuleName SysAdminToolkit Write-Host { }
+        Mock -ModuleName SysAdminToolkit Read-Host { throw 'Read-Host must not be called' }
+        Mock -ModuleName SysAdminToolkit Test-Connection { $true }
+        Mock -ModuleName SysAdminToolkit Get-ToolkitConfig {
+            @{ ADConnectServer = 'localhost'; ADSyncTimeoutSecs = 900 }
+        }
+    }
+
+    It 'passes the configured timeout to the remote cycle' {
+        Mock -ModuleName SysAdminToolkit Invoke-Command {
+            [pscustomobject]@{ Status = 'Completed'; ElapsedSeconds = 5 }
+        }
+
+        Invoke-ADSync
+
+        Should -Invoke -ModuleName SysAdminToolkit Invoke-Command -Times 1 -Exactly -ParameterFilter {
+            $ArgumentList[0] -eq 900
+        }
+    }
+
+    It 'lets -TimeoutSeconds override the configuration' {
+        Mock -ModuleName SysAdminToolkit Invoke-Command {
+            [pscustomobject]@{ Status = 'Completed'; ElapsedSeconds = 5 }
+        }
+
+        Invoke-ADSync -TimeoutSeconds 60
+
+        Should -Invoke -ModuleName SysAdminToolkit Invoke-Command -Times 1 -Exactly -ParameterFilter {
+            $ArgumentList[0] -eq 60
+        }
+    }
+
+    It 'writes an error when the cycle times out' {
+        Mock -ModuleName SysAdminToolkit Invoke-Command {
+            [pscustomobject]@{ Status = 'TimedOut'; ElapsedSeconds = 900 }
+        }
+
+        Invoke-ADSync -ErrorVariable syncErrors -ErrorAction SilentlyContinue
+
+        "$syncErrors" | Should -BeLike '*still running after 900s*'
+    }
+
+    It 'warns instead of failing when a cycle is already running' {
+        Mock -ModuleName SysAdminToolkit Invoke-Command {
+            [pscustomobject]@{ Status = 'AlreadyRunning'; ElapsedSeconds = 0 }
+        }
+
+        Invoke-ADSync -WarningVariable syncWarnings -WarningAction SilentlyContinue -ErrorVariable syncErrors
+
+        "$syncWarnings" | Should -BeLike '*already running*'
+        $syncErrors | Should -BeNullOrEmpty
+    }
+
+    It 'starts nothing with -WhatIf' {
+        Mock -ModuleName SysAdminToolkit Invoke-Command { }
+
+        Invoke-ADSync -WhatIf
+
+        Should -Invoke -ModuleName SysAdminToolkit Invoke-Command -Times 0 -Exactly
+    }
+}
