@@ -20,6 +20,8 @@ function Invoke-ADSync {
     The ADConnectServer value is read from the toolkit configuration via Get-ToolkitConfig.
     #>
     [CmdletBinding()]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
+        Justification = 'Interactive wizard; to be split into core command + UI. See issue #1 (F-21).')]
     param()
     Show-MenuHeader -Title 'Run AD Delta Sync'
     Write-Host 'This script triggers an Active Directory Delta sync.' -ForegroundColor Yellow

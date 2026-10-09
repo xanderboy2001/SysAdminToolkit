@@ -1,5 +1,8 @@
 function Get-RDConnectedUser {
+    [CmdletBinding()]
     [Alias('Get-RDConnectedUsers')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
+        Justification = 'Interactive wizard; to be split into core command + UI. See issue #1 (F-21).')]
     param(
         [string]$ConnectionBroker
     )

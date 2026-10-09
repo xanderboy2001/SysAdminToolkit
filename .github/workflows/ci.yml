@@ -31,27 +31,31 @@ jobs:
       - name: Validate manifest
         run: Test-ModuleManifest -Path ./SysAdminToolkit.psd1 -ErrorAction Stop | Format-List Name, Version, ExportedFunctions
 
-      - name: PSScriptAnalyzer (blocking rules)
-        run: |
-          $blockingRules = @(
-            'PSAvoidUsingInvokeExpression', 'PSAvoidUsingPlainTextForPassword',
-            'PSAvoidUsingConvertToSecureStringWithPlainText', 'PSAvoidUsingUsernameAndPasswordParams',
-            'PSUseShouldProcessForStateChangingFunctions', 'PSShouldProcess',
-            'PSAvoidAssignmentToAutomaticVariable', 'PSAvoidUsingEmptyCatchBlock',
-            'PSUseDeclaredVarsMoreThanAssignments', 'PSUseApprovedVerbs', 'PSReservedCmdletChar',
-            'PSReservedParams', 'PSAvoidGlobalVars', 'PSUseToExportFieldsInManifest',
-            'PSAvoidDefaultValueSwitchParameter', 'PSMissingModuleManifestField'
-          )
-          $all = Invoke-ScriptAnalyzer -Path . -Recurse -Settings ./PSScriptAnalyzerSettings.psd1
-          $all | Sort-Object ScriptName, Line | Format-Table -AutoSize RuleName, Severity, ScriptName, Line, Message
-          $blocking = $all | Where-Object { $_.Severity -eq 'Error' -or $_.RuleName -in $blockingRules }
-          if ($blocking) { throw "$(@($blocking).Count) blocking analyzer finding(s)." }
+      - name: Analyzer + Pester (via report script)
+        run: ./Tools/Export-TestReport.ps1 -IncludeIntegration
 
-      - name: Pester
+      - name: Fail on any analyzer finding
         run: |
-          $config = New-PesterConfiguration
-          $config.Run.Path = './Tests'
-          $config.Run.Exit = $true
-          $config.TestResult.Enabled = $true
-          $config.Output.Verbosity = 'Detailed'
-          Invoke-Pester -Configuration $config
+          $findings = @(Import-Csv ./ScriptAnalyzer.csv)
+          if ($findings.Count -gt 0) {
+            $findings | Format-Table -AutoSize
+            throw "$($findings.Count) analyzer finding(s)."
+          }
+
+      - name: Formatting check
+        run: |
+          $unformatted = foreach ($file in Get-ChildItem -Include *.ps1, *.psm1, *.psd1 -Recurse -File) {
+            $text = Get-Content -LiteralPath $file.FullName -Raw
+            $formatted = Invoke-Formatter -ScriptDefinition $text -Settings ./PSScriptAnalyzerSettings.psd1
+            if ($formatted -cne $text) { $file.FullName }
+          }
+          if ($unformatted) { $unformatted; throw 'Run Invoke-Formatter on the files above.' }
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: |
+            TestReport.md
+            ScriptAnalyzer.csv

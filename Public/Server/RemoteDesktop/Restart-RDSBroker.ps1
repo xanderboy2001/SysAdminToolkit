@@ -43,6 +43,8 @@ function Restart-RDSBroker {
     Requires the RemoteDesktop PowerShell module and WinRM access to all broker servers.
     #>
     [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'High')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
+        Justification = 'Interactive wizard; to be split into core command + UI. See issue #1 (F-21).')]
     param(
         [string]$BrokerServer,
         [int]$TimeoutSecs,
