@@ -3,6 +3,8 @@ SysAdminToolkit-Repomix.md
 TestReport.md
 Config/config.psd1
 Logs/
+*.patch
+SysAdminToolkit-*.zip
 # Created by https://gitignore.org
 # Node.gitignore
 
