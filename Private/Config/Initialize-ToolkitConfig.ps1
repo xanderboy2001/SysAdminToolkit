@@ -4,7 +4,7 @@ function Initialize-ToolkitConfig {
     Loads the machine-wide toolkit configuration, merging in default values for missing keys.
 
     .DESCRIPTION
-    The configuration lives on one machine-wide file (by default C:\ProgramData\SysAdminToolkit\Config\config.psd1)
+    The configuration lives in one machine-wide file (by default C:\ProgramData\SysAdminToolkit\Config\config.psd1)
     shared by every administrator on the server. Because it controls which executable Stop-FileLock runs and
     which servers the toolkit reboots, it is only loaded when Test-ToolkitConfigTrust confirms that only
     administrators can change the folder and the file.
