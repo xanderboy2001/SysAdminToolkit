@@ -35,6 +35,6 @@ function Show-MenuInstruction {
 
     if ($BackOptions) {
         $BackOptList = $BackOptions -join ', '
-        Write-Host "You may also enter $BackOptList to return to the main menu." -ForegroundColor Yellow
+        Write-Host "You may also enter $BackOptList to return to the previous menu." -ForegroundColor Yellow
     }
 }
