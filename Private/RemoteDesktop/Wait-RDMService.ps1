@@ -1,78 +1,98 @@
 function Wait-RDMService {
     <#
     .SYNOPSIS
-    Runs Get-Service on the specified computer to query the status of the 'Remote Desktop Connection Broker'
-    service. The function returns when the service is started.
+    Waits until the RDS Connection Broker services are running on a computer.
+
+    .DESCRIPTION
+    Polls the Remote Desktop Management (rdms), Remote Desktop Connection Broker (tssdis), and RemoteApp and
+    Desktop Connection Management (tscpubrpc) services on the target computer until all three are running.
+
+    The status check runs on the target computer and returns each status as a string ('Running', 'Stopped',
+    'NotFound', ...), so the comparison does not depend on how enum values survive remoting. A service that does
+    not exist counts as not running.
+
+    Waits PollSeconds before every check, including the first, because services are often still starting right
+    after a reboot. Throws when the services are not running after MaxRetries checks.
 
     .PARAMETER ComputerName
-    [string] Specifies the computer to run the service status check on.
+    The broker to check.
+
+    .PARAMETER MaxRetries
+    Number of checks before giving up. The total wait is about MaxRetries x PollSeconds.
+
+    .PARAMETER PollSeconds
+    Delay before each check.
 
     .EXAMPLE
-    Wait-RDMService -ComputerName broker.domain.com
-    # Polls until all RDS services are running on broker.domain.com
+    Wait-RDMService -ComputerName broker.domain.com -MaxRetries 15
+    # Checks every 30 seconds, up to 15 times (about 7.5 minutes).
 
-    .EXAMPLE
-    Wait-RDMService -ComputerName broker.domain.com -MaxRetries 20
-    # Polls up to 20 times before throwing a timeout error.
-
+    .NOTES
+    Author: Alexander Christian
     #>
     [CmdletBinding()]
     param(
-        [Parameter(
-            Mandatory,
-            HelpMessage = "The FQDN or hostname of the broker server to poll for service status."
-        )]
+        [Parameter(Mandatory, HelpMessage = "The FQDN or hostname of the broker server to poll.")]
         [ValidateNotNullOrEmpty()]
         [string]$ComputerName,
 
-        [Parameter(
-            Mandatory,
-            HelpMessage = "Maximum number of polling attempts before throwing a timeout error."
-        )]
-        [int]$MaxRetries
+        [Parameter(Mandatory, HelpMessage = "Number of checks before throwing a timeout error.")]
+        [ValidateRange(1, 1000)]
+        [int]$MaxRetries,
+
+        [ValidateRange(1, 600)]
+        [int]$PollSeconds = 30
     )
 
-    $ServicesReady = $false
-    $RetryCount = 0
-    $ServiceCheckScript = {
-        Get-Service | Where-Object {
-            $_.Name -eq 'rdms' -or
-            $_.Name -eq 'tssdis' -or
-            $_.Name -eq 'tscpubrpc'
-        } | Select-Object -Property Name, Status
-    }
+    $serviceNames = @('rdms', 'tssdis', 'tscpubrpc')
 
-    do {
-        try {
-            Start-Sleep -Seconds 30
-            $status = Invoke-Command -ComputerName $ComputerName -ScriptBlock $ServiceCheckScript -ErrorAction Stop
-
-            # Print status of all services
-            Write-Verbose "Service status on ${ComputerName}:"
-            $status | ForEach-Object {
-                Write-Verbose "  $($_.Name): $($_.Status)"
+    # Runs on the broker. Returns one object per requested service, with the status as a string.
+    $serviceCheck = {
+        param([string[]]$Names)
+        foreach ($name in $Names) {
+            $service = Get-Service -Name $name -ErrorAction SilentlyContinue
+            [pscustomobject]@{
+                Name   = $name
+                Status = if ($service) { $service.Status.ToString() } else { 'NotFound' }
             }
-
-            $allRunning = ($status | Where-Object { $_.Status -ne 4 }).Count -eq 0
-
-            if ($allRunning) {
-                $ServicesReady = $true
-            } else {
-                $running = [System.ServiceProcess.ServiceControllerStatus]::Running
-                $status | Where-Object { $_.Status -ne $running } | ForEach-Object {
-                    Write-Information "Waiting for $($_.Name) to start..."
-                }
-            }
-        } catch {
-            Write-Warning ("Unable to query service status on $ComputerName (Attempt $RetryCount):" +
-                "$($_.Exception.Message)")
         }
-        $RetryCount++
-    } until ($ServicesReady -eq $true -or $RetryCount -gt $MaxRetries)
-
-    if ($ServicesReady) {
-        return
-    } else {
-        throw "RDS Service failed to start on $ComputerName within the timeout period."
     }
+
+    $invokeParams = @{
+        ComputerName = $ComputerName
+        ScriptBlock  = $serviceCheck
+        # The lading comma passes the array as one argument instead of one argument per name.
+        ArgumentList = (, $serviceNames)
+        ErrorAction  = 'Stop'
+    }
+
+    $lastProblem = 'no status was returned'
+    for ($attempt = 1; $attempt -le $MaxRetries; $attempt++) {
+        Start-Sleep -Seconds $PollSeconds
+        try {
+            $status = @(Invoke-Command @invokeParams)
+        } catch {
+            $lastProblem = "status query failed: $($_.Exception.Message)"
+            Write-Warning "Unable to query services on $ComputerName (check $attempt of $MaxRetries): $lastProblem"
+            continue
+        }
+
+        foreach ($service in $status) {
+            Write-Verbose "  ${ComputerName} $($service.Name): $($service.Status)"
+        }
+
+        $notRunning = @($status | Where-Object { $_.Status -ne 'Running' })
+        if ($status.Count -eq $serviceNames.Count -and $notRunning.Count -eq 0) {
+            return
+        }
+
+        $lastProblem = ($notRunning | ForEach-Object { "$($_.Name) is $($_.Status)" }) -join ', '
+        if (-not $lastProblem) {
+            $lastProblem = "expected $($serviceNames.Count) services, got $($status.Count)"
+        }
+        Write-Information "Waiting for RDS services on $ComputerName (check $attempt of $MaxRetries): $lastProblem"
+    }
+
+    throw ("RDS services did not all start on $ComputerName after $MaxRetries checks" +
+        "($($MaxRetries * $PollSeconds)s). Last status: $lastProblem.")
 }

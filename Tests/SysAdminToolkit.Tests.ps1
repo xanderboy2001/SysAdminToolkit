@@ -267,10 +267,9 @@ Describe 'Restart-RDSBroker' {
     It 'refuses to run with a single broker' {
         Mock -ModuleName SysAdminToolkit Get-RDServer { [pscustomobject]@{ Server = 'B1.CONTOSO.TEST' } }
 
-        Restart-RDSBroker -BrokerServer 'localhost' -Force -ErrorAction SilentlyContinue -ErrorVariable errors
+        { Restart-RDSBroker -BrokerServer 'localhost' -Force } | Should -Throw '*Only one Connection Broker*'
 
         Should -Invoke -ModuleName SysAdminToolkit Restart-ServerAndWait -Times 0 -Exactly
-        "$errors" | Should -BeLike '*Only one Connection Broker*'
     }
 
     It 'refuses to run when the active broker is not in the broker list' {
@@ -279,7 +278,7 @@ Describe 'Restart-RDSBroker' {
             [pscustomobject]@{ Server = 'B3.CONTOSO.TEST' }
         }
 
-        Restart-RDSBroker -BrokerServer 'localhost' -Force -ErrorAction SilentlyContinue
+        { Restart-RDSBroker -BrokerServer 'localhost' -Force } | Should -Throw '*not in the broker list*'
 
         Should -Invoke -ModuleName SysAdminToolkit Restart-ServerAndWait -Times 0 -Exactly
     }
@@ -297,6 +296,179 @@ Describe 'Restart-RDSBroker' {
             Restart-RDSBroker -BrokerServer 'localhost' -Force
 
             $script:rebootOrder | Should -Be @('B2.CONTOSO.TEST', 'B1.CONTOSO.TEST')
+        }
+    }
+
+    It 'stops after a failed switch, does not reboot the active broker, and reports the state' {
+        Mock -ModuleName SysAdminToolkit Get-RDServer {
+            [pscustomobject]@{ Server = 'B1.CONTOSO.TEST' }
+            [pscustomobject]@{ Server = 'B2.CONTOSO.TEST' }
+        }
+        Mock -ModuleName SysAdminToolkit Switch-ActiveBroker { throw 'switch failed' }
+
+        $failure = { Restart-RDSBroker -BrokerServer 'localhost' -Force } | Should -Throw -PassThru
+
+        $failure.Exception.Message | Should -BeLike "*step 'make B2.CONTOSO.TEST the active broker'*"
+        $failure.Exception.Message | Should -BeLike '*switch failed*'
+        $failure.Exception.Message | Should -BeLike '*Completed before the failure: rebooted B2.CONTOSO.TEST.*'
+        $failure.Exception.Message | Should -BeLike '*Current active broker: B1.CONTOSO.TEST*'
+        Should -Invoke -ModuleName SysAdminToolkit Restart-ServerAndWait -Times 1 -Exactly -ParameterFilter {
+            $ComputerName -eq 'B2.CONTOSO.TEST'
+        }
+        Should -Invoke -ModuleName SysAdminToolkit Restart-ServerAndWait -Times 0 -Exactly -ParameterFilter {
+            $ComputerName -eq 'B1.CONTOSO.TEST'
+        }
+    }
+}
+
+Describe 'Wait-RDMService' {
+    BeforeAll {
+        # Shorthand so each test does not repeat the target name.
+        function script:Wait-RDMServiceTest {
+            param([int]$MaxRetries)
+            InModuleScope SysAdminToolkit -Parameters @{ MaxRetries = $MaxRetries } {
+                param($MaxRetries)
+                Wait-RDMService -ComputerName 'B1.CONTOSO.TEST' -MaxRetries $MaxRetries
+            }
+        }
+    }
+
+    BeforeEach {
+        Mock -ModuleName SysAdminToolkit Start-Sleep { }
+        Mock -ModuleName SysAdminToolkit Write-Information { }
+        Mock -ModuleName SysAdminToolkit Write-Warning { }
+    }
+
+    It 'returns as soon as all three services report Running' {
+        Mock -ModuleName SysAdminToolkit Invoke-Command {
+            'rdms', 'tssdis', 'tscpubrpc' | ForEach-Object { [pscustomobject]@{ Name = $_; Status = 'Running' } }
+        }
+
+        { Wait-RDMServiceTest -MaxRetries 5 } | Should -Not -Throw
+
+        Should -Invoke -ModuleName SysAdminToolkit Invoke-Command -Times 1 -Exactly
+    }
+
+    It 'checks exactly MaxRetries times, then throws (regression: used to check MaxRetries + 1 times)' {
+        Mock -ModuleName SysAdminToolkit Invoke-Command {
+            [pscustomobject]@{ Name = 'rdms'; Status = 'Running' }
+            [pscustomobject]@{ Name = 'tssdis'; Status = 'StartPending' }
+            [pscustomobject]@{ Name = 'tscpubrpc'; Status = 'Running' }
+        }
+
+        { Wait-RDMServiceTest -MaxRetries 3 } | Should -Throw '*after 3 checks*tssdis is StartPending*'
+
+        Should -Invoke -ModuleName SysAdminToolkit Invoke-Command -Times 3 -Exactly
+    }
+
+    It 'treats a missing service as not running' {
+        Mock -ModuleName SysAdminToolkit Invoke-Command {
+            [pscustomobject]@{ Name = 'rdms'; Status = 'Running' }
+            [pscustomobject]@{ Name = 'tssdis'; Status = 'NotFound' }
+            [pscustomobject]@{ Name = 'tscpubrpc'; Status = 'Running' }
+        }
+
+        { Wait-RDMServiceTest -MaxRetries 1 } | Should -Throw '*tssdis is NotFound*'
+    }
+
+    It 'runs the status check on the target and compares status as text (regression: enum vs 4)' {
+        InModuleScope SysAdminToolkit {
+            Mock Start-Sleep { }
+            # Run the remote script block locally, against mocked services with real enum values.
+            Mock Invoke-Command { & $ScriptBlock @ArgumentList }
+            Mock Get-Service {
+                $running = [System.ServiceProcess.ServiceControllerStatus]::Running
+                [pscustomobject]@{ Name = $Name; Status = $running }
+            }
+
+            { Wait-RDMService -ComputerName 'B1.CONTOSO.TEST' -MaxRetries 1 } | Should -Not -Throw
+
+            Should -Invoke Get-Service -Times 3 -Exactly
+        }
+    }
+}
+
+Describe 'Switch-ActiveBroker' {
+    BeforeEach {
+        InModuleScope SysAdminToolkit {
+            Mock Start-Sleep { }
+            Mock Write-Information { }
+            Mock Set-RDActiveManagementServer { }
+            $script:reportedActive = [System.Collections.Generic.Queue[string]]::new()
+            Mock Get-ActiveBroker { $script:reportedActive.Dequeue() }
+            $script:switchParams = @{
+                ActiveBroker    = 'B1.CONTOSO.TEST'
+                NewActiveBroker = 'b2.contoso.test'
+                BrokerServers   = @('B1.CONTOSO.TEST', 'b2.contoso.test')
+                TimeoutSeconds  = 30
+                PollSeconds     = 10
+            }
+        }
+    }
+
+    It 'polls until the new broker is reported active, ignoring case (regression: single check after 10s)' {
+        InModuleScope SysAdminToolkit {
+            'B1.CONTOSO.TEST', 'B2.CONTOSO.TEST' | ForEach-Object { $script:reportedActive.Enqueue($_) }
+
+            { Switch-ActiveBroker @switchParams } | Should -Not -Throw
+
+            Should -Invoke Get-ActiveBroker -Times 2 -Exactly
+        }
+    }
+
+    It 'throws after TimeoutSeconds and reports the last active broker' {
+        InModuleScope SysAdminToolkit {
+            1..10 | ForEach-Object { $script:reportedActive.Enqueue('B1.CONTOSO.TEST') }
+
+            { Switch-ActiveBroker @switchParams } | Should -Throw '*within 30s*last reported: B1.CONTOSO.TEST*'
+
+            Should -Invoke Get-ActiveBroker -Times 3 -Exactly
+        }
+    }
+
+    It 'throws without polling when Set-RDActiveManagementServer fails' {
+        InModuleScope SysAdminToolkit {
+            Mock Set-RDActiveManagementServer { throw 'access denied' }
+
+            { Switch-ActiveBroker @switchParams } |
+                Should -Throw '*Set-RDActiveManagementServer failed*access denied*'
+
+            Should -Invoke Get-ActiveBroker -Times 0 -Exactly
+        }
+    }
+}
+
+Describe 'Restart-ServerAndWait' {
+    BeforeEach {
+        InModuleScope SysAdminToolkit {
+            Mock Write-Information { }
+            Mock Start-Sleep { }
+            Mock Test-Connection { $true }
+            # Fake host names only: if a mock ever failed, nothing real could be rebooted.
+            Mock Restart-Computer { }
+            Mock Wait-RDMService { }
+        }
+    }
+
+    It 'does not reboot a server that does not answer a ping' {
+        InModuleScope SysAdminToolkit {
+            Mock Test-Connection { $false }
+
+            { Restart-ServerAndWait -ComputerName 'B2.CONTOSO.TEST' -TimeoutSecs 60 -MaxRetries 1 } |
+                Should -Throw '*not reachable*not rebooted*'
+
+            Should -Invoke Restart-Computer -Times 0 -Exactly
+        }
+    }
+
+    It 'names the server and the failed step when the services do not start' {
+        InModuleScope SysAdminToolkit {
+            Mock Wait-RDMService { throw 'services did not start' }
+
+            { Restart-ServerAndWait -ComputerName 'B2.CONTOSO.TEST' -TimeoutSecs 60 -MaxRetries 1 } |
+                Should -Throw "*B2.CONTOSO.TEST failed during step 'wait for RDS services'*services did not start*"
+
+            Should -Invoke Restart-Computer -Times 1 -Exactly
         }
     }
 }
