@@ -61,7 +61,7 @@ function Wait-RDMService {
     $invokeParams = @{
         ComputerName = $ComputerName
         ScriptBlock  = $serviceCheck
-        # The lading comma passes the array as one argument instead of one argument per name.
+        # The leading comma passes the array as one argument instead of one argument per name.
         ArgumentList = (, $serviceNames)
         ErrorAction  = 'Stop'
     }
@@ -93,6 +93,6 @@ function Wait-RDMService {
         Write-Information "Waiting for RDS services on $ComputerName (check $attempt of $MaxRetries): $lastProblem"
     }
 
-    throw ("RDS services did not all start on $ComputerName after $MaxRetries checks" +
+    throw ("RDS services did not all start on $ComputerName after $MaxRetries checks " +
         "($($MaxRetries * $PollSeconds)s). Last status: $lastProblem.")
 }
