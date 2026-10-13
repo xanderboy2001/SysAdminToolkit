@@ -15,6 +15,10 @@ function Restart-RDSBroker {
     Timeout and retry values are read from the toolkit configuration if not supplied as parameters.
     The Connection Broker is also read from configuration if not provided.
 
+    Nothing is rebooted unless at least two brokers are found and the active broker is one of them. If any step
+    fails, the procedure stops and throws a terminating error that names the failed step, list what was already
+    done, and reports the current active broker.
+
     .PARAMETER BrokerServer
     Optional. The hostname or FQDN of any broker in the HA group. If not provided and not set in
     the toolkit configuration, the user is prompted.
@@ -95,11 +99,14 @@ function Restart-RDSBroker {
             $BrokerServers = (Get-RDServer @ServerParams).Server
             Write-Host "Retrieved list of broker servers." -ForegroundColor Green
         } catch {
-            throw "Failed to get list of broker servers."
+            throw "Failed to get list of broker servers from ${BrokerServerFQDN}: $($_.Exception.Message)"
         }
     }
 
     process {
+        # Tracks progress so a failure can say exactly what state the farm was left in.
+        $completed = [System.Collections.Generic.List[string]]::new()
+        $step = 'determine the active broker'
         try {
             $ActiveBroker = (Get-ActiveBroker -BrokerServers $BrokerServers).ToUpper()
             $InactiveBrokers = @($BrokerServers | Where-Object { $_ -ne $ActiveBroker })
@@ -116,35 +123,57 @@ function Restart-RDSBroker {
                 throw "Only one Connection Broker was found. A staggered reboot requires at least two brokers."
             }
 
-            $plan = "Reboot $($InactiveBrokers -join ', '), make $($InactiveBrokers[0]) active, " +
+            $NewActiveBroker = $InactiveBrokers[0]
+            $plan = "Reboot $($InactiveBrokers -join ', '), make $NewActiveBroker active, " +
             "then reboot $ActiveBroker"
             if (-not $PSCmdlet.ShouldProcess($plan, 'Restart RDS Connection Brokers')) {
                 return
             }
 
             foreach ($broker in $InactiveBrokers) {
-
+                $step = "reboot inactive broker $broker"
                 Write-Host "Beginning reboot-and-wait process for $broker..." -ForegroundColor Cyan
                 Restart-ServerAndWait -ComputerName $broker -TimeoutSecs $TimeoutSecs -MaxRetries $MaxRetries
+                $completed.Add("rebooted $broker")
                 Write-Host "Reboot-and-wait process for $broker completed." -ForegroundColor Green
             }
 
-            $NewActiveBroker = $InactiveBrokers[0]
+            $step = "make $NewActiveBroker the active broker"
             Write-Host "Switching active broker from $ActiveBroker to $NewActiveBroker..." -ForegroundColor Cyan
-            $SwitchParams = @{
+            $switchParams = @{
                 ActiveBroker    = $ActiveBroker
                 NewActiveBroker = $NewActiveBroker
                 BrokerServers   = $BrokerServers
             }
-            Switch-ActiveBroker @SwitchParams
+            Switch-ActiveBroker @switchParams
+            $completed.Add("made $NewActiveBroker active")
             Write-Host "Active Broker is now $NewActiveBroker" -ForegroundColor Green
 
+            $step = "reboot original active broker $ActiveBroker"
             $msg = "Beginning the reboot-and-wait process for the original active broker ($ActiveBroker)..."
             Write-Host $msg -ForegroundColor Cyan
             Restart-ServerAndWait -ComputerName $ActiveBroker -TimeoutSecs $TimeoutSecs -MaxRetries $MaxRetries
+            $completed.Add("reboted $ActiveBroker")
             Write-Host "Reboot-and-wait process for $ActiveBroker completed." -ForegroundColor Green
         } catch {
-            Write-Error "CRITICAL ERROR during broker maintenance: $($_.Exception.Message)"
+            # Capture the failure first: the nested try/catch below would replace $_
+            $failure = $_
+            $done = if ($completed.Count -gt 0) { $completed -join '; ' } else { 'nothing' }
+            $currentActive = try {
+                Get-ActiveBroker -BrokerServers $BrokerServers -WarningAction SilentlyContinue
+            } catch {
+                'unknown (could not be queried)'
+            }
+            $message = "Broker maintenance stopped at step '$step': $($failure.Exception.Message) " +
+            "Completed before the failure: $done. Current active broker: $currentActive. " +
+            'Check the brokers before running this again.'
+            $errorRecord = [System.Management.Automation.ErrorRecord]::new(
+                [System.InvalidOperationException]::new($message, $failure.Exception),
+                'SysAdminToolkit.BrokerMaintenanceFailed',
+                [System.Management.Automation.ErrorCategory]::OperationStopped,
+                $step
+            )
+            $PSCmdlet.ThrowTerminatingError($errorRecord)
         }
     }
 }

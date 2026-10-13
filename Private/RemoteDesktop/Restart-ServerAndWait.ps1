@@ -1,87 +1,83 @@
 function Restart-ServerAndWait {
     <#
     .SYNOPSIS
-
-        Reboots the specified server and waits for Remote Desktop service to start.
+        Reboots a Connection Broker and waits until its RDS services are running again.
 
     .DESCRIPTION
+    1. Checks that the server answers a ping. If not, throws before rebooting anything.
+    2. Reboots the server and waits until PowerShell remoting is available again (Restart-Computer -Wait
+       -For PowerShell), for up to TimeoutSecs.
+    3. Waits for the RDS broker services with Wait-RDMService.
+    4. Waits 30 more seconds so the broker databases can synchronize.
 
-        This function follows the following procedure:
-
-            1. Check to make sure the specified server is reachable using Test-Connection. If the server is not
-               reachable, the function throws an error and exits.
-
-            2. Reboot the server. This function uses the '-Wait' and '-For PowerShell' parameters to pause
-               execution until PowerShell is available on the rebooted server. It times out after the time
-               specified by the $TimeoutSecs variable defined at the top of the script.
-
-            3. Run the Wait-ForRDMServices function to wait for the 'Remote Desktop Connection Broker' service to
-               be fully started on the rebooted server.
-
-            4. Wait an additional 30 seconds to allow for the Remote Desktop databases to fully synchronize
-               before continuing.
+    A failure in steps 2-4 throws an error that names the server and the step that failed, with the original
+    error as the inner exception.
 
     .PARAMETER ComputerName
-        [string] The name of the broker to reboot. Mandatory
+    The broker to reboot.
+
+    .PARAMETER TimeoutSecs
+    Seconds to wait for PowerShell remoting to be available after the reboot.
+
+    .PARAMETER MaxRetries
+    Number of service checks passed to Wait-RDMService.
 
     .EXAMPLE
+    Restart-ServerAndWait -ComputerName broker2.domain.com -TimeoutSecs 600 -MaxRetries 15
 
-        PS> Restart-ServerAndWait broker.domain.com
-
-    .EXAMPLE
-
-        PS> Restart-ServerAndWait -ComputerName broker.domain.com
-
+    .NOTES
+    Author: Alexander Christian
     #>
     [CmdletBinding(SupportsShouldProcess)]
     param(
-        [Parameter(
-            Mandatory,
-            HelpMessage = "The FQDN or hostname of the broker server to reboot."
-        )]
+        [Parameter(Mandatory, HelpMessage = "The FQDN or hostname of the broker server to reboot.")]
         [ValidateNotNullOrEmpty()]
         [string]$ComputerName,
 
-        [Parameter(
-            Mandatory,
-            HelpMessage = "Seconds to wait for PowerShell to become available after reboot."
-        )]
+        [Parameter(Mandatory, HelpMessage = "Seconds to wait for PowerShell to become available after reboot.")]
+        [ValidateRange(1, 86400)]
         [int]$TimeoutSecs,
 
-        [Parameter(
-            Mandatory,
-            HelpMessage = "Maximum number of service polling attempts before throwing a timeout error."
-        )]
+        [Parameter(Mandatory, HelpMessage = "Number of service checks before throwing a timeout error.")]
+        [ValidateRange(1, 1000)]
         [int]$MaxRetries
     )
 
-    try {
-        Write-Information "Testing connection to $ComputerName..."
-        if (Test-Connection -ComputerName $ComputerName -Count 1 -Quiet) {
-            Write-Information "$ComputerName is online"
-        } else {
-            throw "$ComputerName is not reachable"
-        }
-    } catch {
-        throw "Error when pinging ${ComputerName}: $($_.Exception.Message)"
+    Write-Information "Testing connection to $ComputerName..."
+    if (-not (Test-Connection -ComputerName $ComputerName -Count 1 -Quiet)) {
+        throw "$ComputerName is not reachable. It was not rebooted."
     }
 
     if (-not $PSCmdlet.ShouldProcess($ComputerName, 'Restart computer and wait for RDS services')) {
         return
     }
+
+    $step = "reboot"
     try {
-        Write-Information "Rebooting the inactive broker ($ComputerName)..."
-        Restart-Computer -ComputerName $ComputerName -Force -Wait -For PowerShell -Timeout $TimeoutSecs
-        Write-Information "$ComputerName has successfully rebooted."
+        Write-Information "Rebooting $ComputerName (waiting up to ${TimeoutSecs}s for it to come back)..."
+        # -ErrorAction Stop: a reboot that times out must stop the procedure, not just print the error.
+        $restartParams = @{
+            ComputerName = $ComputerName
+            Force = $true
+            Wait = $true
+            For = "PowerShell"
+            Timeout = $TimeoutSecs
+            ErrorAction = "Stop"
+        }
+        Restart-Computer @restartParams
+        Write-Information "$ComputerName is back online."
 
-        Write-Information "Waiting for Remote Desktop services to start..."
+        $step = "wait for RDS services"
+        Write-Information "Waiting for Remote Desktop services to start on $ComputerName..."
         Wait-RDMService -ComputerName $ComputerName -MaxRetries $MaxRetries
-        Write-Information "Remote Desktop services have started on $ComputerName."
+        Write-Information "Remote Desktop services are running on $ComputerName."
 
+        $step = "database synchronization wait"
         Write-Information "Waiting 30 seconds for database synchronization..."
         Start-Sleep -Seconds 30
-        Write-Information "Database sync wait period completed."
     } catch {
-        throw "Fatal error during reboot process: $($_.Exception.Message)"
+        throw [System.InvalidOperationException]::new(
+            "$ComputerName failed during step '$step': $($_.Exception.Message)", $_.Exception
+        )
     }
 }
