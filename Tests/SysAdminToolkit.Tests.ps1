@@ -1138,76 +1138,78 @@ Describe 'Invoke-ADSync' {
 
 Describe 'Get-BatteryReport' {
     Context 'Report parsing (remote script block run locally)' {
-        BeforeEach {
-            InModuleScope SysAdminToolkit {
-                # Run the remote script block in this session, with powercfg.exe replaced by a mock that writes
-                # $script:fixtureXml to the /output path and records that path.
-                Mock Invoke-Command { & $ScriptBlock }
-                Mock Read-Host { throw 'Read-Host must not be called' }
-                $script:reportPath = $null
-                $script:exitCode = 0
-                Mock powercfg.exe {
-                    $script:reportPath = $args[3]
-                    Set-Content -LiteralPath $script:reportPath -Value $script:fixtureXml
-                    $global:LASTEXITCODE = $script:exitCode
-                }
-                $script:batteryXml = {
-                    param([string]$Batteries)
-                    '<?xml version="1.0"?><BatteryReport xmlns="http://schemas.microsoft.com/battery/2012">' +
-                    "<Batteries>$Batteries</Batteries></BatteryReport>"
-                }
+        BeforeAll {
+            $script:batteryXml = {
+                param([string]$Batteries)
+                '<?xml version="1.0"?><BatteryReport xmlns="http://schemas.microsoft.com/battery/2012">' +
+                "<Batteries>$Batteries</Batteries></BatteryReport>"
             }
+        }
+
+        BeforeEach {
+            # powercfg.exe is replaced by a global FUNCTION with the same name: PowerShell finds functions before
+            # programs, including from inside the module. A Pester mock of the .exe is not used because it fails
+            # under the module's Set-StrictMode. The stub writes $fixture.Xml to the /output path, records the
+            # path, and sets the exit code.
+            $script:fixture = @{ Xml = ''; ExitCode = 0; ReportPath = $null }
+            $fixture = $script:fixture
+            $stub = {
+                $fixture.ReportPath = $args[3]
+                Set-Content -LiteralPath $args[3] -Value $fixture.Xml
+                $global:LASTEXITCODE = $fixture.ExitCode
+            }.GetNewClosure()
+            $null = New-Item -Path 'function:global:powercfg.exe' -Value $stub -Force
+
+            # Runs the remote script block in this session instead of on a remote computer.
+            Mock -ModuleName SysAdminToolkit Invoke-Command { & $ScriptBlock }
+            Mock -ModuleName SysAdminToolkit Read-Host { throw 'Read-Host must not be called' }
+        }
+
+        AfterEach {
+            Remove-Item -Path 'function:global:powercfg.exe' -ErrorAction SilentlyContinue
         }
 
         It 'returns one object per battery (regression: two batteries used to fail)' {
-            InModuleScope SysAdminToolkit {
-                $script:fixtureXml = & $script:batteryXml (
-                    '<Battery><Id>Internal</Id><DesignCapacity>50000</DesignCapacity>' +
-                    '<FullChargeCapacity>40000</FullChargeCapacity><CycleCount>120</CycleCount></Battery>' +
-                    '<Battery><Id>External</Id><DesignCapacity>24000</DesignCapacity>' +
-                    '<FullChargeCapacity>23000</FullChargeCapacity><CycleCount>30</CycleCount></Battery>'
-                )
+            $script:fixture.Xml = & $script:batteryXml (
+                '<Battery><Id>Internal</Id><DesignCapacity>50000</DesignCapacity>' +
+                '<FullChargeCapacity>40000</FullChargeCapacity><CycleCount>120</CycleCount></Battery>' +
+                '<Battery><Id>External</Id><DesignCapacity>24000</DesignCapacity>' +
+                '<FullChargeCapacity>23000</FullChargeCapacity><CycleCount>30</CycleCount></Battery>'
+            )
 
-                $result = @(Get-BatteryReport -ComputerName 'PC1')
+            $result = @(Get-BatteryReport -ComputerName 'PC1')
 
-                $result.Count | Should -Be 2
-                $result[0].BatteryId | Should -Be 'Internal'
-                $result[0].CapacityPercent | Should -Be 80
-                $result[0].CycleCount | Should -Be 120
-                $result[1].CapacityPercent | Should -Be 95.8
-                $result.Status | Should -Be @('OK', 'OK')
-            }
+            $result.Count | Should -Be 2
+            $result[0].BatteryId | Should -Be 'Internal'
+            $result[0].CapacityPercent | Should -Be 80
+            $result[0].CycleCount | Should -Be 120
+            $result[1].CapacityPercent | Should -Be 95.8
+            $result.Status | Should -Be @('OK', 'OK')
         }
 
         It 'reports NoBattery for a computer without a battery' {
-            InModuleScope SysAdminToolkit {
-                $script:fixtureXml = & $script:batteryXml ''
+            $script:fixture.Xml = & $script:batteryXml ''
 
-                $result = @(Get-BatteryReport -ComputerName 'PC1')
+            $result = @(Get-BatteryReport -ComputerName 'PC1')
 
-                $result.Count | Should -Be 1
-                $result[0].Status | Should -Be 'NoBattery'
-            }
+            $result.Count | Should -Be 1
+            $result[0].Status | Should -Be 'NoBattery'
         }
 
         It 'uses a unique temp file and deletes it even when the report cannot be read' {
-            InModuleScope SysAdminToolkit {
-                $script:fixtureXml = 'this is not xml'
+            $script:fixture.Xml = 'this is not xml'
 
-                { Get-BatteryReport -ComputerName 'PC1' -ErrorAction Stop } | Should -Throw
+            { Get-BatteryReport -ComputerName 'PC1' -ErrorAction Stop } | Should -Throw
 
-                $script:reportPath | Should -BeLike '*batteryreport-*.xml'
-                Test-Path -LiteralPath $script:reportPath | Should -BeFalse
-            }
+            $script:fixture.ReportPath | Should -BeLike '*batteryreport-*.xml'
+            Test-Path -LiteralPath $script:fixture.ReportPath | Should -BeFalse
         }
 
         It 'fails when powercfg returns a non-zero exit code' {
-            InModuleScope SysAdminToolkit {
-                $script:fixtureXml = & $script:batteryXml ''
-                $script:exitCode = 1
+            $script:fixture.Xml = & $script:batteryXml ''
+            $script:fixture.ExitCode = 1
 
-                { Get-BatteryReport -ComputerName 'PC1' -ErrorAction Stop } | Should -Throw '*exit code 1*'
-            }
+            { Get-BatteryReport -ComputerName 'PC1' -ErrorAction Stop } | Should -Throw '*exit code 1*'
         }
 
         It 'only calls built-in commands and powercfg.exe, so it can run remotely' {
@@ -1245,7 +1247,14 @@ Describe 'Get-BatteryReport' {
         It 'reports errors per computer instead of hiding them (regression: SilentlyContinue)' {
             Mock -ModuleName SysAdminToolkit Invoke-Command {
                 [pscustomobject]@{ ComputerName = 'PC1'; BatteryId = 'A'; Status = 'OK' }
-                Write-Error -Message 'WinRM cannot complete the operation' -TargetObject 'PC2'
+                # -ErrorAction Continue: keep this a non-terminating error whatever the test's preference is,
+                # as it would be when one computer out of several fails.
+                $errorParams = @{
+                    Message      = 'WinRM cannot complete the operation'
+                    TargetObject = 'PC2'
+                    ErrorAction  = 'Continue'
+                }
+                Write-Error @errorParams
             }
 
             $result = @(Get-BatteryReport -ComputerName 'PC1', 'PC2' -ErrorVariable batteryErrors `
