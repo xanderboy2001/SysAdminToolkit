@@ -79,7 +79,10 @@ function Get-ToolkitMenu {
             Title = 'Client Menu'
             Items = @(
                 @{ Label = 'Unlock a file being held by a process'; Action = { Stop-FileLock } }
-                @{ Label = 'Get battery report of a computer'; Action = { Get-BatteryReport } }
+                @{
+                    Label  = 'Get battery report of one or more computers'
+                    Action = { Get-BatteryReport | Format-Table -AutoSize }
+                }
                 @{ Label = "Open a Printer's Web Interface"; Action = { Open-PrinterWebInterface } }
                 @{ Label = 'Test computer reachability'; Menu = 'Reachability' }
             )

@@ -4,92 +4,165 @@ function Get-BatteryReport {
     Retrieves battery capacity data from a single computer.
 
     .DESCRIPTION
-    Connects to the specified computer via Invoke-Command and uses powercfg to generate a temporary XML battery
-    report. The design capacity and full charge capactiy are parsed from the report and returned as a
-    PSCustomObject. The temporary report file is removed from the remote machine after parsing.
+    Runs powercfg /batteryreport on each computer through PowerShell remoting and returns one objext per battery.
+    All computers are queried in parallel by a single Invoke-Command call.
 
-    CapcityPercent is calculated as (FullChargeCapacity / DesignCapacity) * 100, rounded to 1 decimal place.
-    Capacity values are in milliwatt-hours (mWh).
+    - Each report is written to a uniquely named files in the remote temp folder and is always deleted, even
+      when reading it fails.
+    - A computer without a battery returns one object with status 'NoBattery'.
+    - A computer that cannot be reached, or where powercfg fails, writes a non-terminating error naming that
+      computer; the other computers are still reported.
+
+    CapacityPercent is FullChargeCapacity / DesignCapacity x 100, rounded to one decimal place. Capacities are
+    in milliwatt-hours (mWh)
 
     .PARAMETER ComputerName
-    Optional. The name of the computer to collect battery data from. If not provided, the user is prompted to
-    enter one.
+    One or more computers. Accepts pipeline input, including objects with a ComputerName or DNSHostName property
+    (for example from Get-ADComputer). If omitted and nothing is piped in, you are prompted for a
+    comma-separated list.
 
     .EXAMPLE
     Get-BatteryReport -ComputerName 'PC-1234'
     # Returns battery capacity data for PC-1234.
 
     .EXAMPLE
-    Get-BatteryReport
-    # Prompts for a computer name and returns battery capacity data.
+    'PC-1234', 'PC-5678' | Get-BatteryReport | Where-Object CapacityPercent -lt 60
+    # Lists batteries below 60& of their design capacity.
+
+    .EXAMPLE
+    Get-ADComputer -Filter "Name -like 'L-*'" | Get-BatteryReport -ErrorAction SilentlyContinue |
+        Export-Csv .\batteries.csv -NoTypeInformation
+    # Reports every laptop that answers; unreachable ones are skipped.
+
+    .INPUTS
+    System.String
 
     .OUTPUTS
-    PSCustomObject with properties: ComputerName, DesignCapacity, FullChargeCapacity, CapacityPercent.
+    PSCustomObject with ComputerName, BatteryId, Status, DesignCapacity, FullChargeCapacity, CapacityPercent,
+    and CycleCount
 
     .NOTES
     Author: Alexander Christian
-    Requires powercfg to be available and the executing account to have permission to run it remotely on the
-    target machine.
+    Requires WinRM access to the target computers.
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]
     param(
-        [string]$ComputerName
+        [Parameter(ValueFromPipeline, ValueFromPipelineByPropertyName)]
+        [Alias('DNSHostName')]
+        [ValidateNotNullOrEmpty()]
+        [string[]]$ComputerName
     )
 
     begin {
-        if (-not $ComputerName) {
-            $ComputerName = Read-Host "Enter the name of a computer"
-        }
+        $computers = [System.Collections.Generic.List[string]]::new()
 
-        if (-not (Test-Connection -ComputerName $ComputerName -Count 1 -Quiet)) {
-            throw "Could not establish a connection to $ComputerName"
-        }
-    }
-
-    process {
-        $batteryScript = {
-            try {
-                $reportPath = Join-Path -Path $env:TEMP -ChildPath 'batteryreport.xml'
-
-                powercfg.exe /batteryreport /xml /output $reportPath 2>$null
-
-                [xml]$report = Get-Content -Path $reportPath -ErrorAction Stop
-                Remove-Item -Path $reportPath -Force
-
-                $battery = $report.BatteryReport.Batteries.Battery
-
-                $capacityPercent = $null
-                if ($battery.DesignCapacity -and $battery.FullChargeCapacity) {
-                    $capacityPercent = [math]::Round(
-                        ([int]$battery.FullChargeCapacity / [int]$battery.DesignCapacity) * 100, 1
-                    )
-                }
-
-                [pscustomobject]@{
-                    ComputerName       = $env:COMPUTERNAME
-                    DesignCapacity     = [int]$battery.DesignCapacity
-                    FullChargeCapacity = [int]$battery.FullChargeCapacity
-                    CapacityPercent    = $capacityPercent
-                }
-            } catch {
-                Write-Warning "Error on '$env:COMPUTERNAME': $($_.Exception.Message)"
-                [pscustomobject]@{
-                    ComputerName       = $env:COMPUTERNAME
-                    DesignCapacity     = $null
-                    FullChargeCapacity = $null
-                    CapacityPercent    = $null
+        if (-not $PSBoundParameters.ContainsKey('ComputerName') -and -not $MyInvocation.ExpectingInput) {
+            $answer = Read-Host 'Enter one or more computer names (comma separated)'
+            foreach ($name in $answer -split ',' ) {
+                if (-not [string]::IsNullOrWhiteSpace($name)) {
+                    $computers.Add($name.Trim())
                 }
             }
         }
 
-        $invokeParams = @{
-            ComputerName = $ComputerName
-            ScriptBlock  = $batteryScript
-            ErrorAction  = "SilentlyContinue"
-        }
-        $result = Invoke-Command @invokeParams
+        # Runs on each target computer. Must stay self-contained: only built-in cmdlets and powercfg.
+        $batteryScript = {
+            $reportPath = Join-Path -Path ([System.IO.Path]::GetTempPath()) -ChildPath (
+                'batteryreport-{0}.xml' -f [guid]::NewGuid().ToString('N')
+            )
+            try {
+                $null = powercfg.exe /batteryreport /xml /output $reportPath 2>&1
+                if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $reportPath)) {
+                    throw "powercfg /batteryreport failed with exit code $LASTEXITCODE."
+                }
+                [xml]$report = Get-Content -Path $reportPath -ErrorAction Stop
+            } finally {
+                Remove-Item -LiteralPath $reportPath -Force -ErrorAction SilentlyContinue
+            }
 
-        $result | Select-Object -Property ComputerName, DesignCapacity, FullChargeCapacity, CapacityPercent
+            # local-name() ignores the report's XML namespace and works when <Batteries> is empty.
+            $readValue = {
+                param($Node, [string]$Name)
+                $child = $Node.SelectSingleNode("*[local-name()='$Name']")
+                if ($child) { $child.InnerText } else { $null }
+            }
+
+            $batteries = @($report.SelectNodes("//*[local-name()='Batteries']/*[local-name()='Battery']"))
+            if ($batteries.Count -eq 0) {
+                return [pscustomobject]@{
+                    ComputerName       = $env:COMPUTERNAME
+                    BatteryId          = $null
+                    Status             = 'NoBattery'
+                    DesignCapacity     = $null
+                    FullChargeCapacity = $null
+                    CapacityPercent    = $null
+                    CycleCount         = $null
+                }
+            }
+
+            foreach ($battery in $batteries) {
+                $design = (& $readValue $battery 'DesignCapacity') -as [int]
+                $full = ( &$readValue $battery 'FullChargeCapacity') -as [int]
+                [pscustomobject]@{
+                    ComputerName       = $env:COMPUTERNAME
+                    BatteryId          = & $readValue $battery 'Id'
+                    Status             = 'OK'
+                    DesignCapacity     = $design
+                    FullChargeCapacity = $full
+                    CapacityPercent    = if ($design -gt 0 -and $null -ne $full) {
+                        [math]::Round(($full / $design) * 100, 1)
+                    } else {
+                        $null
+                    }
+                    CycleCount         = (& $readValue $battery 'CycleCount') -as [int]
+                }
+            }
+        }
+    }
+
+    process {
+        foreach ($name in $ComputerName) {
+            if (-not [string]::IsNullOrWhiteSpace($name)) {
+                $computers.Add($name.Trim())
+            }
+        }
+    }
+
+    end {
+        if ($computers.Count -eq 0) {
+            Write-Warning 'No computer names were provided.'
+            return
+        }
+
+        $remoteErrors = $null
+        $invokeParams = @{
+            ComputerName  = @($computers | Sort-Object -Unique)
+            ScriptBlock   = $batteryScript
+            # Errors are collected and re-reported below with the computer name , instead of being hidden.
+            ErrorAction   = 'SilentlyContinue'
+            ErrorVariable = 'remoteErrors'
+        }
+        Invoke-Command @invokeParams |
+            Select-Object -Property ComputerName, BatteryId, Status, DesignCapacity, FullChargeCapacity,
+            CapacityPercent, CycleCount
+
+        foreach ($remoteError in @($remoteErrors)) {
+            $target = if ($remoteError.PSObject.Properties['OriginInfo'] -and $remoteError.OriginInfo) {
+                $remoteError.OriginInfo.PSComputerName
+            } elseif ($remoteError.TargetObject) {
+                "$($remoteError.TargetObject)"
+            } else {
+                $remoteError.CategoryInfo.TargetName
+            }
+            $errorParams = @{
+                Message      = "Battery report failed on ${target}: $($remoteError.Exception.Message)"
+                Exception    = $remoteError.Exception
+                Category     = $remoteError.CategoryInfo.Category
+                ErrorId      = 'SysAdminToolkit.BatteryReportFailed'
+                TargetObject = $target
+            }
+            Write-Error @errorParams
+        }
     }
 }

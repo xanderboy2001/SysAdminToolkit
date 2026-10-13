@@ -1135,3 +1135,165 @@ Describe 'Invoke-ADSync' {
         Should -Invoke -ModuleName SysAdminToolkit Invoke-Command -Times 0 -Exactly
     }
 }
+
+Describe 'Get-BatteryReport' {
+    Context 'Report parsing (remote script block run locally)' {
+        BeforeAll {
+            $script:batteryXml = {
+                param([string]$Batteries)
+                '<?xml version="1.0"?><BatteryReport xmlns="http://schemas.microsoft.com/battery/2012">' +
+                "<Batteries>$Batteries</Batteries></BatteryReport>"
+            }
+        }
+
+        BeforeEach {
+            # powercfg.exe is replaced by a global FUNCTION with the same name: PowerShell finds functions before
+            # programs, including from inside the module. A Pester mock of the .exe is not used because it fails
+            # under the module's Set-StrictMode. The stub writes $fixture.Xml to the /output path, records the
+            # path, and sets the exit code.
+            $script:fixture = @{ Xml = ''; ExitCode = 0; ReportPath = $null }
+            $fixture = $script:fixture
+            $stub = {
+                $fixture.ReportPath = $args[3]
+                Set-Content -LiteralPath $args[3] -Value $fixture.Xml
+                $global:LASTEXITCODE = $fixture.ExitCode
+            }.GetNewClosure()
+            $null = New-Item -Path 'function:global:powercfg.exe' -Value $stub -Force
+
+            # Runs the remote script block in this session instead of on a remote computer.
+            Mock -ModuleName SysAdminToolkit Invoke-Command { & $ScriptBlock }
+            Mock -ModuleName SysAdminToolkit Read-Host { throw 'Read-Host must not be called' }
+        }
+
+        AfterEach {
+            Remove-Item -Path 'function:global:powercfg.exe' -ErrorAction SilentlyContinue
+        }
+
+        It 'returns one object per battery (regression: two batteries used to fail)' {
+            $script:fixture.Xml = & $script:batteryXml (
+                '<Battery><Id>Internal</Id><DesignCapacity>50000</DesignCapacity>' +
+                '<FullChargeCapacity>40000</FullChargeCapacity><CycleCount>120</CycleCount></Battery>' +
+                '<Battery><Id>External</Id><DesignCapacity>24000</DesignCapacity>' +
+                '<FullChargeCapacity>23000</FullChargeCapacity><CycleCount>30</CycleCount></Battery>'
+            )
+
+            $result = @(Get-BatteryReport -ComputerName 'PC1')
+
+            $result.Count | Should -Be 2
+            $result[0].BatteryId | Should -Be 'Internal'
+            $result[0].CapacityPercent | Should -Be 80
+            $result[0].CycleCount | Should -Be 120
+            $result[1].CapacityPercent | Should -Be 95.8
+            $result.Status | Should -Be @('OK', 'OK')
+        }
+
+        It 'reports NoBattery for a computer without a battery' {
+            $script:fixture.Xml = & $script:batteryXml ''
+
+            $result = @(Get-BatteryReport -ComputerName 'PC1')
+
+            $result.Count | Should -Be 1
+            $result[0].Status | Should -Be 'NoBattery'
+        }
+
+        It 'uses a unique temp file and deletes it even when the report cannot be read' {
+            $script:fixture.Xml = 'this is not xml'
+
+            { Get-BatteryReport -ComputerName 'PC1' -ErrorAction Stop } | Should -Throw
+
+            $script:fixture.ReportPath | Should -BeLike '*batteryreport-*.xml'
+            Test-Path -LiteralPath $script:fixture.ReportPath | Should -BeFalse
+        }
+
+        It 'fails when powercfg returns a non-zero exit code' {
+            $script:fixture.Xml = & $script:batteryXml ''
+            $script:fixture.ExitCode = 1
+
+            { Get-BatteryReport -ComputerName 'PC1' -ErrorAction Stop } | Should -Throw '*exit code 1*'
+        }
+
+        It 'only calls built-in commands and powercfg.exe, so it can run remotely' {
+            InModuleScope SysAdminToolkit {
+                $script:capturedBlock = $null
+                Mock Invoke-Command { $script:capturedBlock = $ScriptBlock }
+
+                Get-BatteryReport -ComputerName 'PC1'
+
+                $allowedModules = 'Microsoft.PowerShell.Core', 'Microsoft.PowerShell.Utility',
+                'Microsoft.PowerShell.Management'
+                $commandNames = $script:capturedBlock.Ast.FindAll(
+                    { $args[0] -is [System.Management.Automation.Language.CommandAst] }, $true
+                ) | ForEach-Object { $_.GetCommandName() } | Where-Object { $_ } | Sort-Object -Unique
+
+                $notAllowed = foreach ($commandName in $commandNames) {
+                    if ($commandName -eq 'powercfg.exe') {
+                        continue
+                    }
+                    $command = Get-Command -Name $commandName -CommandType Cmdlet -ErrorAction SilentlyContinue
+                    if (-not $command -or $command.ModuleName -notin $allowedModules) {
+                        $commandName
+                    }
+                }
+                $notAllowed | Should -BeNullOrEmpty
+            }
+        }
+    }
+
+    Context 'Targets and errors' {
+        BeforeEach {
+            Mock -ModuleName SysAdminToolkit Read-Host { throw 'Read-Host must not be called' }
+        }
+
+        It 'reports errors per computer instead of hiding them (regression: SilentlyContinue)' {
+            Mock -ModuleName SysAdminToolkit Invoke-Command {
+                [pscustomobject]@{ ComputerName = 'PC1'; BatteryId = 'A'; Status = 'OK' }
+                # -ErrorAction Continue: keep this a non-terminating error whatever the test's preference is,
+                # as it would be when one computer out of several fails.
+                $errorParams = @{
+                    Message      = 'WinRM cannot complete the operation'
+                    TargetObject = 'PC2'
+                    ErrorAction  = 'Continue'
+                }
+                Write-Error @errorParams
+            }
+
+            $result = @(Get-BatteryReport -ComputerName 'PC1', 'PC2' -ErrorVariable batteryErrors `
+                    -ErrorAction SilentlyContinue)
+
+            $result.Count | Should -Be 1
+            $result[0].ComputerName | Should -Be 'PC1'
+            "$batteryErrors" | Should -BeLike '*failed on PC2*WinRM cannot complete*'
+        }
+
+        It 'accepts pipeline input, removes duplicates, and queries all computers in one call' {
+            Mock -ModuleName SysAdminToolkit Invoke-Command { }
+
+            'PC1', 'pc1', 'PC2' | Get-BatteryReport
+
+            Should -Invoke -ModuleName SysAdminToolkit Invoke-Command -Times 1 -Exactly -ParameterFilter {
+                $ComputerName.Count -eq 2
+            }
+        }
+
+        It 'accepts objects with a DNSHostName property, such as Get-ADComputer output' {
+            Mock -ModuleName SysAdminToolkit Invoke-Command { }
+
+            [pscustomobject]@{ DNSHostName = 'pc1.contoso.test' } | Get-BatteryReport
+
+            Should -Invoke -ModuleName SysAdminToolkit Invoke-Command -Times 1 -Exactly -ParameterFilter {
+                $ComputerName -contains 'pc1.contoso.test'
+            }
+        }
+
+        It 'prompts for a comma-separated list when no computer is given' {
+            Mock -ModuleName SysAdminToolkit Read-Host { 'PC1, PC2,' }
+            Mock -ModuleName SysAdminToolkit Invoke-Command { }
+
+            Get-BatteryReport
+
+            Should -Invoke -ModuleName SysAdminToolkit Invoke-Command -Times 1 -Exactly -ParameterFilter {
+                ($ComputerName -join ',') -eq 'PC1,PC2'
+            }
+        }
+    }
+}
