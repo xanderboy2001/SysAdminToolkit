@@ -1,111 +1,143 @@
 # SysAdmin Toolkit
 
 [![GitHub issues](https://img.shields.io/github/issues/xanderboy2001/SysAdminToolkit?style=for-the-badge)](https://github.com/xanderboy2001/SysAdminToolkit/issues)
-[![GitHub stars](https://img.shields.io/github/stars/xanderboy2001/SysAdminToolkit?style=for-the-badge)](https://github.com/xanderboy2001/SysAdminToolkit/stargazers)
-[![GitHub license](https://img.shields.io/github/license/xanderboy2001/SysAdminToolkit?style=for-the-badge)](https://github.com/xanderboy2001/SysAdminToolkit/blob/main/LICENSE)
+[![GitHub license](https://img.shields.io/github/license/xanderboy2001/SysAdminToolkit?style=for-the-badge)](https://github.com/xanderboy2001/SysAdminToolkit/blob/main/LICENSE.md)
 
----
+A menu-driven PowerShell module for day-to-day administration of a hybrid Windows environment: Active Directory
+accounts, Entra Connect sync, Remote Desktop Services, and Windows clients.
 
-## Table of Contents
+## Table of contents
 
-1. [About the Project](#about-the-project)
-2. [Built With](#built-with)
-3. [Getting Started](#getting-started)
-   - [Prerequisites](#prerequisites)
-   - [Installation](#installation)
-4. [Usage](#usage)
-5. [Roadmap](#roadmap)
-6. [Contributing](#contributing)
-7. [License](#license)
-8. [Contact](#contact)
-9. [Acknowledgments](#acknowledgments)
+1. [Requirements](#requirements)
+2. [Installation](#installation)
+3. [Usage](#usage)
+4. [Commands](#commands)
+5. [Configuration](#configuration)
+6. [Securing the configuration](#securing-the-configuration)
+7. [Development](#development)
+8. [License](#license)
+9. [Contact](#contact)
 
----
+## Requirements
 
-## About The Project
+- Windows with **PowerShell 7.4 or later**. Windows PowerShell 5.1 is not supported.
+- The **ActiveDirectory** module (RSAT). The module will not import without it.
+- The **RemoteDesktop** module, for the Remote Desktop commands. It is available on Windows Server with the
+  Remote Desktop Services tools installed.
+- **WinRM** (PowerShell remoting) access to the computers you manage.
+- The **ADSync** module on the Entra Connect server, for `Invoke-ADSync`.
+- Sysinternals **handle.exe**, for `Stop-FileLock`. See [Sysinternals](#sysinternals).
+- Rights in Active Directory and on the servers for the tasks you run. The toolkit runs everything with your own
+  account.
 
-The **SysAdmin Toolkit** is a PowerShell-based module meant to streamline administrative tasks by offering a menu-driven interface. It contains utilities for both _server_ and _client_ operations, with menus for Active Directory, and future extensions. The goal is to provide a clean, navigable toolkit for sysadmins to run scripts without memorizing commands.
+## Installation
 
----
+The module is meant to be installed on one admin server and used from administrator accounts.
 
-## Built With
-
-- PowerShell (works on Windows PowerShell and PowerShell 7+)
-- Modular design: split into `.psm1`, `.psd1`, and `.ps1` files
-- Readable menus and prompts via ANSI colors
-
----
-
-## Getting Started
-
-### Prerequisites
-
-Make sure you have:
-
-- [PowerShell](https://github.com/powershell/powershell) installed (5.1 or later recommended)
-- Git (if you want to clone the repo)
-
----
-
-### Installation
-
-1. Clone this repository:
-
-   ```bash
-   git clone https://github.com/xanderboy2001/SysAdminToolkit.git
-   ```
-
-2. Ensure the folder structure remains:
+1. From an elevated session, copy the repository to a location only administrators can write to, keeping the
+   folder name `SysAdminToolkit`:
 
    ```powershell
-   SysAdminToolkit/
-      SysAdminToolkit.psd1
-      SysAdminToolkit.psm1
-      Public/
-         ... (menu and command scripts)
-      Private/
-         ... (helper scripts, utils)
+   git clone https://github.com/xanderboy2001/SysAdminToolkit.git "C:\Program Files\PowerShell\Modules\SysAdminToolkit"
    ```
 
-3. (Recommended) Copy the folder into your personal PowerShell modules directory:
+2. Open an **elevated** PowerShell 7 session (Run as administrator) and import the module once. This creates the
+   configuration folder with administrator-only write access:
 
    ```powershell
-   $dest = Join-Path $HOME 'Documents/PowerShell/Modules/SysAdminToolkit'
-   Copy-Item -Recurse -Path 'C:/path/to/downloaded/SysAdminToolkit' -Destination $dest
+   Import-Module SysAdminToolkit
    ```
 
-4. Import the module in PowerShell:
+3. Set your servers through the menu: **Config** > **Edit Config** (still in the elevated session). See
+   [Configuration](#configuration).
 
-   ```powershell
-   Import-Module SysAdminToolkit -Force
-   ```
-
-   Or if not in a standard module path (you didn't follow step 3):
-
-   ```powershell
-   Import-Module 'C:/full/path/to/SysAdminToolkit' -Force
-   ```
-
-5. Launch the toolkit menu:
+4. From then on, any session can use the toolkit:
 
    ```powershell
    Start-ToolkitMenu
    ```
 
----
+To update, run `git pull` in the module folder from an elevated session, then `Import-Module SysAdminToolkit
+-Force`.
 
 ## Usage
 
-When you run `Start-ToolkitMenu`, you will see a top-level menu. Options include:
+`Start-ToolkitMenu` opens the main menu:
 
-- **Server** - Opens the server tools menu:
-  - **Active Directory** - Tools for password reset, account unlock, disable user, create user
-  - (Other submodules planned, e.g. Troubleshooting)
-- **Client** - Reserved for future client‑side utilities (e.g. local user management, workstation scripts)
+```text
+SysAdmin Toolkit
+├── Server
+│   ├── Active Directory   Reset Password · Unlock Account · Disable User · Start AD Sync · Get Disabled Users
+│   ├── Remote Desktop     Reboot Connection Brokers · Toggle New Connections on Server · List connected users
+│   └── Troubleshooting    Query Server Disk Type (not implemented yet)
+├── Client                 Unlock a file · Battery report · Printer web interface · Test computer reachability
+└── Config                 View Config · Edit Config · Reset Config to Defaults
+```
 
-Select menu options using the number keys (e.g. `1` for Server), or use `Q`, `Quit`, `E`, `Exit`, `C`, `Cancel` to exit. Use `B`, `Back` when prompted to return to the previous menu.
+- Enter the number of an option.
+- `B` or `Back` returns to the previous menu.
+- `Q`, `Quit`, `E`, `Exit`, `C`, or `Cancel` leaves the toolkit from any menu.
+- After an action finishes, the same menu is shown again. If an action fails, its error is shown and the menu
+  comes back.
 
----
+Every command can also be run on its own. Use `Get-Help <command> -Full` for details and examples.
+
+## Commands
+
+| Command | What it does | Changes anything? |
+|---|---|---|
+| `Start-ToolkitMenu` | Opens the toolkit menu | No |
+| `Invoke-ADPasswordReset` | Resets an AD user's password and unlocks the account | Yes: asks for confirmation |
+| `Invoke-ADAccountUnlock` | Unlocks a locked AD account | Yes: asks for confirmation |
+| `Invoke-ADAccountDisable` | Disables an AD account | Yes: asks for confirmation |
+| `Invoke-ADSync` | Runs an Entra Connect delta sync and waits for it to finish | Yes: supports `-WhatIf` |
+| `Get-ADDisabledUser` | Lists disabled AD accounts, leaving out chosen OUs | No |
+| `Restart-RDSBroker` | Reboots all Connection Brokers one at a time, moving the active role between them | Yes: asks for confirmation |
+| `Set-RDSessionHostMode` | Switches new connections on or off (toggles) for chosen session hosts | Yes: supports `-WhatIf` |
+| `Get-RDConnectedUser` | Shows who is connected to a session host | No |
+| `Stop-FileLock` | Finds and stops the processes holding a file open, locally or on another computer | Yes: asks for each process |
+| `Get-BatteryReport` | Reports battery capacity for one or more computers | No |
+| `Open-PrinterWebInterface` | Opens a shared printer's web page | No |
+| `Test-ComputerReachability` | Pings a list, a numbered name range, or an IP range in parallel | No |
+| `Show-ReachabilityMenu` | Opens the reachability menu on its own | No |
+
+The interactive commands prompt for anything you do not pass as a parameter. Most of them print their results
+instead of returning objects; changing that is tracked in
+[issue #1](https://github.com/xanderboy2001/SysAdminToolkit/issues/1). `Get-BatteryReport`,
+`Test-ComputerReachability`, `Get-ADDisabledUser`, and `Stop-FileLock` return objects you can pipe and export.
+
+Examples:
+
+```powershell
+# Preview a broker reboot without changing anything.
+Restart-RDSBroker -WhatIf
+
+# Laptops whose batteries hold less than 60% of their design capacity.
+Get-ADComputer -Filter "Name -like 'L-*'" | Get-BatteryReport -ErrorAction SilentlyContinue |
+    Where-Object CapacityPercent -lt 60
+
+# Which processes on FS01 would be stopped?
+Stop-FileLock -FileName 'D:\Shares\Finance\Budget.xlsx' -ComputerName FS01 -WhatIf
+```
+
+## Configuration
+
+Settings are stored in one machine-wide file, `C:\ProgramData\SysAdminToolkit\Config\config.psd1`, shared by
+every administrator on the server. View them with **Config** > **View Config**. Change them with
+**Config** > **Edit Config** from an elevated session.
+
+| Setting | Default | Used by |
+|---|---|---|
+| `ADConnectServer` | `ADConnect` | `Invoke-ADSync`: the Entra Connect server |
+| `ADSyncTimeoutSecs` | `1800` | `Invoke-ADSync`: how long to wait for a sync cycle |
+| `RDBrokerServer` | *(empty: you are prompted)* | Remote Desktop commands: any Connection Broker |
+| `RDMaxRetries` | `15` | `Restart-RDSBroker`: service checks per broker, 30 seconds apart |
+| `RDTimeoutSecs` | `600` | `Restart-RDSBroker`: how long to wait for a broker to restart |
+| `SysinternalsPath` | `C:\Program Files\Sysinternals` | `Stop-FileLock`: the folder containing `handle.exe` |
+| `PrintServer` | *(not set: you are prompted)* | `Open-PrinterWebInterface`: added when you choose to save it |
+| `ReportsPath` | `C:\ProgramData\SysAdminToolkit\Reports` | Not used yet |
+
+New settings added by later versions are filled in with their defaults automatically.
 
 ## Securing the configuration
 
@@ -157,55 +189,35 @@ The default `SysinternalsPath` is `C:\Program Files\Sysinternals`. Copy `handle.
 valid Microsoft signature). Existing configurations keep their current value; change it through the Config menu
 in an elevated session.
 
----
+For `Stop-FileLock -ComputerName`, `handle.exe` runs on the target computer, so it must exist at the same path
+there.
 
-## Example
+## Development
+
+Run the tests and the analyzer, and write a shareable report, from the repository root:
 
 ```powershell
-Import-Module SysAdminToolkit -Force
-Start-ToolkitMenu
-# ... choose 1 (Server), then 1 (Active Directory), then 2 (Unlock Account)
+pwsh -NoProfile -File ./Tools/Export-TestReport.ps1 -IncludeIntegration
 ```
 
----
+This writes `TestReport.md` and `ScriptAnalyzer.csv` and exits with code 1 if any test fails or the analyzer
+cannot check a file. It needs Pester 5.5 or later and PSScriptAnalyzer. One test changes folder permissions and
+only runs in an elevated session.
 
-## Roadmap
+Every pull request to `main` runs the same checks in GitHub Actions and must pass with no analyzer findings and
+no formatting differences. Format a file with:
 
-- [ ] Implement real scripts under `Public/Server/ActiveDirectory`
-- [ ] Implement a “Troubleshooting” submenu under Server
-- [ ] Add more client-side tools and menu options
-- [ ] Improve error-handling and validation
-- [ ] Publish to PowerShell Gallery
+```powershell
+Invoke-Formatter -ScriptDefinition (Get-Content -Raw .\Path\To\File.ps1) -Settings .\PSScriptAnalyzerSettings.psd1
+```
 
----
-
-## Contributing
-
-Contributions are welcome! Here’s how you can help:
-
-1. Fork the project
-2. Create a branch (`git checkout -b feature/YourFeature`)
-3. Commit your changes (`git commit -m 'Add some feature'`)
-4. Push to your fork (`git push origin feature/YourFeature`)
-5. Open a Pull Request
-
----
+Changes are listed in [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 
-Distributed under the **[GNU General Public License v3.0]**. See [LICENSE.md](LICENSE.md) for more information.
-
----
+Distributed under the GNU General Public License v3.0. See [LICENSE.md](LICENSE.md).
 
 ## Contact
 
-- **Alexander Christian** — <alexanderechristian@gmail.com>
-- **SysAdminToolkit**: [https://github.com/xanderboy2001/SysAdminToolkit](https://github.com/xanderboy2001/SysAdminToolkit)
-
----
-
-## Acknowledgments
-
-- Thanks to the [Best README Template by Othneildrew](https://github.com/othneildrew/Best-README-Template) for the structure
-- Inspired by many PowerShell community tools
-- 💡 Feel free to customize or add more badges as needed
+- **Alexander Christian**: <alexanderechristian@gmail.com>
+- Project: <https://github.com/xanderboy2001/SysAdminToolkit>

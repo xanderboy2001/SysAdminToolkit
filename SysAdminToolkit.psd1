@@ -3,13 +3,14 @@
     RootModule           = 'SysAdminToolkit.psm1'
 
     # Versioning
-    ModuleVersion        = '0.1.0'
+    ModuleVersion        = '0.2.0'
     CompatiblePSEditions = @('Core')
 
     # General Metadata
     GUID                 = 'eee1e706-1766-4fa3-bad2-12b00447d27a'
     Author               = 'Alexander Christian'
-    Description          = 'A SysAdmin Toolkit for managing server and client menus.'
+    # One literal string: manifests are data files and cannot concatenate strings.
+    Description          = 'Menu-driven toolkit for Active Directory, Entra Connect, RDS, and Windows clients.'
 
     # Exports
     FunctionsToExport    = @(
@@ -38,21 +39,18 @@
     # Requirements
     PowerShellVersion    = '7.4'
 
-    # Dependencies (if needed later)
+    # Dependencies. The RemoteDesktop module is also needed for the RDS commands but is loaded on demand.
     RequiredModules      = @('ActiveDirectory')
-
-    # File listings (optional)
-    FileList             = @(
-        'SysAdminToolkit.psm1'
-    )
 
     # Private data
     PrivateData          = @{
         PSData = @{
-            Tags         = @('SysAdmin', 'Toolkit', 'Menu', 'ActiveDirectory', 'Automation', 'Client', 'Server')
+            Tags         = @(
+                'SysAdmin', 'Toolkit', 'Menu', 'ActiveDirectory', 'RemoteDesktop', 'Automation', 'Windows'
+            )
             LicenseUri   = 'https://github.com/xanderboy2001/SysAdminToolkit/blob/main/LICENSE.md'
-            ProjectUri   = 'https://github.com/xanderboy2001/sysadmintoolkit'
-            ReleaseNotes = 'Initial version.'
+            ProjectUri   = 'https://github.com/xanderboy2001/SysAdminToolkit'
+            ReleaseNotes = 'See https://github.com/xanderboy2001/SysAdminToolkit/blob/main/CHANGELOG.md'
         }
     }
 }

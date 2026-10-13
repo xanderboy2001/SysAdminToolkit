@@ -13,6 +13,11 @@ BeforeDiscovery {
     $currentIdentity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
     $currentPrincipal = [System.Security.Principal.WindowsPrincipal]::new($currentIdentity)
     $script:isElevated = $currentPrincipal.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
+
+    $manifestData = Import-PowerShellDataFile -Path (
+        Join-Path -Path $PSScriptRoot -ChildPath '..', 'SysAdminToolkit.psd1'
+    )
+    $script:publicCommands = @($manifestData.FunctionsToExport)
 }
 
 BeforeAll {
@@ -89,6 +94,34 @@ Describe 'Module manifest and public API' {
         'Invoke-ADAccountUnlock', 'Invoke-ADPasswordReset'
     ) {
         (Get-Command -Name $_).Parameters.Keys | Should -Contain 'WhatIf'
+    }
+
+    It '<_> has a description, an example, and documented parameters' -ForEach $script:publicCommands {
+        $commandName = $_
+        $help = Get-Help -Name $commandName -Full
+
+        "$($help.description.Text)".Trim() | Should -Not -BeNullOrEmpty -Because 'Get-Help needs a .DESCRIPTION'
+        @($help.examples.example).Count | Should -BeGreaterThan 0 -Because 'Get-Help needs an .EXAMPLE'
+
+        $commonParameters = [System.Management.Automation.PSCmdlet]::CommonParameters +
+        [System.Management.Automation.PSCmdlet]::OptionalCommonParameters
+        $parameterNames = (Get-Command -Name $commandName).Parameters.Keys |
+            Where-Object { $_ -notin $commonParameters }
+        $undocumented = foreach ($parameterName in $parameterNames) {
+            $parameterHelp = $help.parameters.parameter | Where-Object name -EQ $parameterName
+            if (-not $parameterHelp -or -not "$($parameterHelp.description.Text)".Trim()) {
+                $parameterName
+            }
+        }
+        $undocumented | Should -BeNullOrEmpty -Because 'every parameter needs a .PARAMETER entry'
+    }
+
+    It 'has a CHANGELOG entry for the manifest version' {
+        $version = (Import-PowerShellDataFile -Path $script:manifestPath).ModuleVersion
+        $changelog = Join-Path $script:moduleRoot 'CHANGELOG.md'
+        $newest = Select-String -LiteralPath $changelog -Pattern '^## \[(\d+\.\d+\.\d+)\]' |
+            Select-Object -First 1
+        $newest.Matches[0].Groups[1].Value | Should -Be $version
     }
 
     It 'keeps the pre-0.1 plural names working as aliases' -ForEach @(
