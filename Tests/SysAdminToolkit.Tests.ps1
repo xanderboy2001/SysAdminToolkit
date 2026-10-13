@@ -14,7 +14,9 @@ BeforeDiscovery {
     $currentPrincipal = [System.Security.Principal.WindowsPrincipal]::new($currentIdentity)
     $script:isElevated = $currentPrincipal.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
 
-    $manifestData = Import-PowerShellDataFile -Path (Join-Path $PSScriptRoot '..' 'SysAdminToolkit.psd1')
+    $manifestData = Import-PowerShellDataFile -Path (
+        Join-Path -Path $PSScriptRoot -ChildPath '..' -ChildPath 'SysAdminToolkit.psd1'
+    )
     $script:publicCommands = @($manifestData.FunctionsToExport)
 }
 
