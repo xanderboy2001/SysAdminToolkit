@@ -58,19 +58,11 @@ function Restart-ServerAndWait {
         # -ErrorAction Stop: a reboot that times out must stop the procedure, not just print the error.
         $restartParams = @{
             ComputerName = $ComputerName
-<<<<<<< HEAD
             Force        = $true
             Wait         = $true
             For          = "PowerShell"
             Timeout      = $TimeoutSecs
             ErrorAction  = "Stop"
-=======
-            Force = $true
-            Wait = $true
-            For = "PowerShell"
-            Timeout = $TimeoutSecs
-            ErrorAction = "Stop"
->>>>>>> refs/remotes/origin/feature/broker-reboot
         }
         Restart-Computer @restartParams
         Write-Information "$ComputerName is back online."

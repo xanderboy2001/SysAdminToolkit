@@ -52,11 +52,7 @@ function Wait-RDMService {
         foreach ($name in $Names) {
             $service = Get-Service -Name $name -ErrorAction SilentlyContinue
             [pscustomobject]@{
-<<<<<<< HEAD
                 Name   = $name
-=======
-                Name = $name
->>>>>>> refs/remotes/origin/feature/broker-reboot
                 Status = if ($service) { $service.Status.ToString() } else { 'NotFound' }
             }
         }
@@ -64,17 +60,10 @@ function Wait-RDMService {
 
     $invokeParams = @{
         ComputerName = $ComputerName
-<<<<<<< HEAD
         ScriptBlock  = $serviceCheck
         # The lading comma passes the array as one argument instead of one argument per name.
         ArgumentList = (, $serviceNames)
         ErrorAction  = 'Stop'
-=======
-        ScriptBlock = $serviceCheck
-        # The lading comma passes the array as one argument instead of one argument per name.
-        ArgumentList = (, $serviceNames)
-        ErrorAction = 'Stop'
->>>>>>> refs/remotes/origin/feature/broker-reboot
     }
 
     $lastProblem = 'no status was returned'
