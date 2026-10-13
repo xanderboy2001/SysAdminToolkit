@@ -153,7 +153,7 @@ function Restart-RDSBroker {
             $msg = "Beginning the reboot-and-wait process for the original active broker ($ActiveBroker)..."
             Write-Host $msg -ForegroundColor Cyan
             Restart-ServerAndWait -ComputerName $ActiveBroker -TimeoutSecs $TimeoutSecs -MaxRetries $MaxRetries
-            $completed.Add("reboted $ActiveBroker")
+            $completed.Add("rebooted $ActiveBroker")
             Write-Host "Reboot-and-wait process for $ActiveBroker completed." -ForegroundColor Green
         } catch {
             # Capture the failure first: the nested try/catch below would replace $_
