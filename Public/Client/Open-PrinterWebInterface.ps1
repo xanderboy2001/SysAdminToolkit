@@ -36,18 +36,20 @@ function Open-PrinterWebInterface {
             }
         } while (-not $serverValid)
 
+        # Ask until the answer is clearly yes or no; Enter means yes. Save once, after the loop.
         do {
-            $shouldSave = Read-Host -p "Would you like to save this value to the configuration file? [Y/n]"
-            if ($shouldSave -notmatch '[Nn].*') {
-                $config = Get-ToolkitConfig
-                $config['PrintServer'] = $printServer
-                try {
-                    Save-ToolkitConfig -Config $config
-                } catch {
-                    Write-Warning "Could not save PrintServer to the configuration: $($_.Exception.Message)"
-                }
+            $answer = Read-Host -Prompt 'Save this print server to the configuration? [Y/n]'
+        } until ($answer -match '^\s*(y|yes|n|no)?\s*$')
+
+        if ($answer -notmatch '^\s*n') {
+            $config = Get-ToolkitConfig
+            $config['PrintServer'] = $printServer
+            try {
+                Save-ToolkitConfig -Config $config
+            } catch {
+                Write-Warning "Could not save PrintServer to the configuration: $($_.Exception.Message)"
             }
-        } while ($shouldSave -ne '' -and $shouldSave -notmatch '[YyNn].*')
+        }
     }
 
 

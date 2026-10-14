@@ -1,45 +1,47 @@
 function Get-ExcludedOUPath {
+    <#
+    .SYNOPSIS
+    Prompts for the OUs to leave out of Get-ADDisabledUser.
+
+    .DESCRIPTION
+    Accepts one or more OU or container distinguished names separated by semicolons. Enter 'l' to list the OUs in
+    the domain. Press Enter without typing anything to leave nothing out. Re-prompts until every entry is a valid
+    distinguished name (see Test-ADDistinguishedName).
+
+    .OUTPUTS
+    System.String. Zero or more distinguished names.
+
+    .NOTES
+    Author: Alexander Christian
+    #>
     [CmdletBinding()]
     [OutputType([string[]])]
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
         Justification = 'Interactive prompt; output is for the operator, not the pipeline.')]
     param()
 
-    $OUPattern = '^((OU=[^,]+,)+)(DC=[^,]+,DC=[^,]+)$'
+    while ($true) {
+        $writeParams = @{ ForegroundColor = 'Yellow' }
+        Write-Host 'Enter the OU or OUs to leave out of this search, for example:' @writeParams
+        Write-Host "  OU=Disabled,OU=Users,DC=contoso,DC=com" @writeParams
+        Write-Host "Separate several OUs with a semicolon (;). Enter 'l' to list the OUs." @writeParams
+        Write-Host 'Press Enter without typing anything to include every OU.' @writeParams
 
-    do {
-        $WriteParams = @{ ForegroundColor = 'yellow' }
-        Write-Host "Enter the paths for the any OU or OUs you would like to exclude from this search." @WriteParams
-        Write-Host "Each path be in format: 'OU=Disabled,OU=Users,DC=company,DC=com'" @WriteParams
-        Write-Host "Separate multiple OU paths with a semicolon: ';'" @WriteParams
-        Write-Host "Enter 'l' to list the OUs in Active Directory"
+        $rawInput = Read-Host 'OUs to exclude'
 
-        $RawInput = Read-Host "Disabled OU Path"
-
-        if ($RawInput -ieq 'l') {
-            Get-ADOrganizationalUnit -Filter '*' | Select-Object Name, DistinguishedName | Format-Table | Out-Host
+        if ($rawInput -ieq 'l') {
+            Get-ADOrganizationalUnit -Filter '*' | Select-Object -Property Name, DistinguishedName |
+                Format-Table | Out-Host
             continue
         }
 
-        $Exclusions = $RawInput -split ';' |
-            Where-Object { $_ -match '\S' } |
-            ForEach-Object { $_.Trim() }
-
-        $AllValid = $true
-
-        if ($Exclusions.Count -eq 0) {
-            Write-Warning "No input provided. Please enter at lease one OU path."
-            $AllValid = $false
-        } else {
-            foreach ($OU in $Exclusions) {
-                if ($OU -notmatch $OUPattern) {
-                    Write-Warning "'$OU' is an invalid OU path format."
-                    $AllValid = $false
-                }
-            }
+        $exclusions = @($rawInput -split ';' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+        $invalid = @($exclusions | Where-Object { -not (Test-ADDistinguishedName -DistinguishedName $_) })
+        if ($invalid.Count -eq 0) {
+            return [string[]]$exclusions
+        }
+        foreach ($entry in $invalid) {
+            Write-Warning "'$entry' is not a valid OU or container distinguished name."
         }
     }
-    until ($AllValid)
-
-    return $Exclusions
 }

@@ -18,6 +18,11 @@ BeforeDiscovery {
         Join-Path -Path $PSScriptRoot -ChildPath '..', 'SysAdminToolkit.psd1'
     )
     $script:publicCommands = @($manifestData.FunctionsToExport)
+
+    # Optional, never committed: one organisation-specific term per line (company name, internal domain, server
+    # names). When present, a test fails if any tracked file contains one of them. See .gitignore.
+    $script:forbiddenTermsPath = Join-Path -Path $PSScriptRoot -ChildPath 'LocalForbiddenTerms.txt'
+    $script:hasForbiddenTerms = Test-Path -LiteralPath $script:forbiddenTermsPath
 }
 
 BeforeAll {
@@ -153,13 +158,13 @@ Describe 'Expand-NameRange' {
 
     It 'rejects mismatched prefixes' {
         InModuleScope SysAdminToolkit {
-            { Expand-NameRange -StartName 'D-1' -EndName 'L-2' } | Should -Throw '*Prefixes must match*'
+            { Expand-NameRange -StartName 'PC-1' -EndName 'LT-2' } | Should -Throw '*Prefixes must match*'
         }
     }
 
     It 'rejects ranges larger than 5001 names' {
         InModuleScope SysAdminToolkit {
-            { Expand-NameRange -StartName 'D-1' -EndName 'PC-9000' } | Should -Throw '*too large*'
+            { Expand-NameRange -StartName 'PC-1' -EndName 'PC-9000' } | Should -Throw '*too large*'
         }
     }
 }
@@ -1326,6 +1331,211 @@ Describe 'Get-BatteryReport' {
 
             Should -Invoke -ModuleName SysAdminToolkit Invoke-Command -Times 1 -Exactly -ParameterFilter {
                 ($ComputerName -join ',') -eq 'PC1,PC2'
+            }
+        }
+    }
+}
+
+Describe 'Public-repository hygiene' {
+    It 'does not ship organisation-specific defaults' {
+        $defaults = Import-PowerShellDataFile -Path (Join-Path $script:moduleRoot 'Config/config.defaults.psd1')
+        $defaults.ADConnectServer | Should -BeNullOrEmpty
+        $defaults.RDBrokerServer | Should -BeNullOrEmpty
+    }
+
+    It 'contains none of the terms in Tests/LocalForbiddenTerms.txt' -Skip:(-not $script:hasForbiddenTerms) {
+        # Variables set in BeforeDiscovery only exist during discovery (for -Skip and -ForEach), not here.
+        $termsPath = Join-Path -Path $PSScriptRoot -ChildPath 'LocalForbiddenTerms.txt'
+        $terms = @(Get-Content -LiteralPath $termsPath | ForEach-Object { $_.Trim() } |
+                Where-Object { $_ -and -not $_.StartsWith('#') })
+        $files = @(git -C $script:moduleRoot ls-files) |
+            Where-Object { $_ -notlike '*.png' -and $_ -notlike '*.ico' } |
+            ForEach-Object { Join-Path $script:moduleRoot $_ }
+
+        $hits = foreach ($term in $terms) {
+            Select-String -LiteralPath $files -Pattern $term -SimpleMatch |
+                ForEach-Object { '{0}:{1}: {2}' -f $_.Path, $_.LineNumber, $term }
+        }
+        $hits | Should -BeNullOrEmpty
+    }
+}
+
+Describe 'Get-ToolkitMenu after removing Troubleshooting (F-12)' {
+    It 'has no Troubleshooting menu and no placeholder items' {
+        InModuleScope SysAdminToolkit {
+            $menus = Get-ToolkitMenu
+            $menus.ContainsKey('Troubleshooting') | Should -BeFalse
+            $menus.Server.Items.Label | Should -Not -Contain 'Troubleshooting'
+        }
+    }
+}
+
+Describe 'Test-ADDistinguishedName' {
+    It 'accepts <_>' -ForEach @(
+        'OU=Disabled,DC=contoso,DC=com'
+        'OU=Disabled,OU=Users,DC=corp,DC=contoso,DC=com'
+        'CN=Users,DC=contoso,DC=com'
+        'OU=Smith\, John,DC=contoso,DC=com'
+        'OU=Leavers [2025],DC=contoso,DC=com'
+    ) {
+        InModuleScope SysAdminToolkit -Parameters @{ Dn = $_ } {
+            param($Dn)
+            Test-ADDistinguishedName -DistinguishedName $Dn | Should -BeTrue
+        }
+    }
+
+    It 'rejects <_>' -ForEach @('', 'Disabled', 'DC=contoso,DC=com', 'OU=Disabled', 'OU=Disabled,DC=') {
+        InModuleScope SysAdminToolkit -Parameters @{ Dn = $_ } {
+            param($Dn)
+            Test-ADDistinguishedName -DistinguishedName $Dn | Should -BeFalse
+        }
+    }
+}
+
+Describe 'Get-ADDisabledUser (F-24)' {
+    BeforeEach {
+        Mock -ModuleName SysAdminToolkit Read-Host { throw 'Read-Host must not be called' }
+        Mock -ModuleName SysAdminToolkit Get-ADUser {
+            $domain = 'DC=contoso,DC=test'
+            [pscustomobject]@{ SamAccountName = 'a'; DistinguishedName = "CN=A,OU=Leavers [2025],$domain" }
+            [pscustomobject]@{ SamAccountName = 'b'; DistinguishedName = "CN=B,OU=Leavers 2,$domain" }
+            [pscustomobject]@{ SamAccountName = 'c'; DistinguishedName = "CN=C,OU=Sub,OU=Old,$domain" }
+            [pscustomobject]@{ SamAccountName = 'd'; DistinguishedName = "CN=D,OU=Staff,$domain" }
+        }
+    }
+
+    It 'matches OU names literally, so [ ] are not wildcards (regression: -like)' {
+        $result = Get-ADDisabledUser -Exclusions 'OU=Leavers [2025],DC=contoso,DC=test'
+
+        $result.SamAccountName | Should -Be @('b', 'c', 'd')
+    }
+
+    It 'also leaves out accounts in sub-OUs of an excluded OU' {
+        $result = Get-ADDisabledUser -Exclusions 'OU=Old,DC=contoso,DC=test'
+
+        $result.SamAccountName | Should -Not -Contain 'c'
+    }
+
+    It 'returns every disabled account with -NoExclusion and does not prompt' {
+        $result = Get-ADDisabledUser -NoExclusion
+
+        $result.Count | Should -Be 4
+    }
+
+    It 'rejects an exclusion that is not a distinguished name' {
+        { Get-ADDisabledUser -Exclusions 'Disabled' } | Should -Throw '*Not a valid OU*'
+
+        Should -Invoke -ModuleName SysAdminToolkit Get-ADUser -Times 0 -Exactly
+    }
+
+    It 'treats an empty answer at the prompt as no exclusions' {
+        Mock -ModuleName SysAdminToolkit Read-Host { '' }
+        Mock -ModuleName SysAdminToolkit Write-Host { }
+
+        (Get-ADDisabledUser).Count | Should -Be 4
+    }
+}
+
+Describe 'Read-Password (F-28)' {
+    BeforeAll {
+        function script:New-TestSecureString {
+            # Builds a SecureString without ConvertTo-SecureString -AsPlainText.
+            param([string]$Text)
+            $secure = [System.Security.SecureString]::new()
+            foreach ($character in $Text.ToCharArray()) {
+                $secure.AppendChar($character)
+            }
+            $secure
+        }
+    }
+
+    It 'rejects an empty password, then re-prompts until both entries match' {
+        $answers = [System.Collections.Generic.Queue[securestring]]::new()
+        '', '', 'abc1', 'abc2', 'abc1', 'abc1' | ForEach-Object { $answers.Enqueue((New-TestSecureString $_)) }
+        InModuleScope SysAdminToolkit -Parameters @{ Answers = $answers } {
+            param($Answers)
+            $script:answers = $Answers
+            Mock Write-Host { }
+            Mock Read-Host { $script:answers.Dequeue() }
+
+            $result = Read-Password
+
+            $result.Length | Should -Be 4
+            Should -Invoke Read-Host -Times 6 -Exactly
+            Should -Invoke Write-Host -Times 1 -Exactly -ParameterFilter { "$Object" -like '*cannot be empty*' }
+        }
+    }
+}
+
+Describe 'AD account commands use one standard confirmation (F-10)' {
+    BeforeEach {
+        InModuleScope SysAdminToolkit {
+            Mock Show-MenuHeader { }
+            Mock Write-Host { }
+            Mock Confirm-UserChoice { throw 'Confirm-UserChoice must not be called' }
+            Mock Get-ValidADUser { [pscustomobject]@{ SamAccountName = 'jdoe'; Name = 'John Doe' } }
+            Mock Get-ADUser { [pscustomobject]@{ SamAccountName = 'jdoe'; LockedOut = $true } }
+            Mock Read-Password { [System.Security.SecureString]::new() }
+            Mock Set-ADAccountPassword { }
+            Mock Unlock-ADAccount { }
+            Mock Disable-ADAccount { }
+        }
+    }
+
+    It 'Invoke-ADPasswordReset -WhatIf asks for no password and changes nothing' {
+        InModuleScope SysAdminToolkit {
+            Invoke-ADPasswordReset -WhatIf
+
+            Should -Invoke Read-Password -Times 0 -Exactly
+            Should -Invoke Set-ADAccountPassword -Times 0 -Exactly
+        }
+    }
+
+    It 'Invoke-ADPasswordReset -Force resets without a second confirmation' {
+        InModuleScope SysAdminToolkit {
+            Invoke-ADPasswordReset -Force -ErrorVariable resetErrors
+
+            $resetErrors | Should -BeNullOrEmpty
+            # No parameter filter: with the real ActiveDirectory module, -Identity is bound as an ADAccount
+            # object, which does not compare equal to the string 'jdoe'.
+            Should -Invoke Set-ADAccountPassword -Times 1 -Exactly
+        }
+    }
+
+    It 'Invoke-ADAccountUnlock -WhatIf changes nothing, and -Force unlocks' {
+        InModuleScope SysAdminToolkit {
+            Invoke-ADAccountUnlock -WhatIf
+            Should -Invoke Unlock-ADAccount -Times 0 -Exactly
+
+            Invoke-ADAccountUnlock -Force
+            Should -Invoke Unlock-ADAccount -Times 1 -Exactly
+        }
+    }
+
+    It 'Invoke-ADAccountDisable -Force disables without prompting' {
+        InModuleScope SysAdminToolkit {
+            Invoke-ADAccountDisable -Force
+
+            Should -Invoke Disable-ADAccount -Times 1 -Exactly
+        }
+    }
+}
+
+Describe 'Set-RDSessionHostMode uses the active broker (F-05)' {
+    It 'queries collections from the active broker, not the broker that was named' {
+        InModuleScope SysAdminToolkit {
+            Mock Write-Host { }
+            Mock Confirm-ConnectionBroker { 'B1.CONTOSO.TEST' }
+            Mock Get-ActiveBroker { 'B2.CONTOSO.TEST' }
+            Mock Get-RDSessionCollection { throw 'stop here' }
+
+            { Set-RDSessionHostMode -ConnectionBroker 'b1' } | Should -Throw '*stop here*'
+
+            Should -Invoke Get-ActiveBroker -Times 1 -Exactly -ParameterFilter {
+                $BrokerServers -contains 'B1.CONTOSO.TEST'
+            }
+            Should -Invoke Write-Host -Times 1 -Exactly -ParameterFilter {
+                "$Object" -like '*active Connection Broker B2.CONTOSO.TEST*'
             }
         }
     }

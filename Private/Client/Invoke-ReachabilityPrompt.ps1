@@ -33,8 +33,8 @@ function Invoke-ReachabilityPrompt {
             $testParams['ComputerName'] = $rawTargets -split ','
         }
         'NameRange' {
-            $start = Read-Host 'Enter starting name (e.g., PC-1200)'
-            $end = Read-Host 'Enter ending name (e.g., PC-1250)'
+            $start = Read-Host 'Enter starting name (e.g., PC-0100)'
+            $end = Read-Host 'Enter ending name (e.g., PC-0150)'
             if (-not $start -or -not $end) {
                 Write-Warning 'Both values are required.'
                 return

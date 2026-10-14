@@ -8,6 +8,39 @@ may contain breaking changes; they are listed under **Breaking** in each entry.
 
 ## [Unreleased]
 
+### Breaking
+
+- The **Server > Troubleshooting** menu is removed. Its only item, "Query Server Disk Type", was never
+  implemented.
+- `ADConnectServer` no longer defaults to a server name; `Invoke-ADSync` prompts until it is set. Existing
+  configurations keep their value.
+- `Invoke-ADPasswordReset` and `Invoke-ADAccountUnlock` use the standard PowerShell confirmation prompt instead
+  of their own "Enter y or yes" prompt, and the password reset no longer asks twice. Note that the standard
+  prompt's default answer is **Yes**. `Invoke-ADAccountUnlock` now asks for confirmation by default.
+
+### Added
+
+- `-Force` on `Invoke-ADPasswordReset`, `Invoke-ADAccountUnlock`, and `Invoke-ADAccountDisable`.
+- `Get-ADDisabledUser -NoExclusion` returns every disabled account without prompting.
+- An optional, never-committed `Tests/LocalForbiddenTerms.txt`: when present, a test fails if any tracked file
+  contains one of its terms.
+
+### Fixed
+
+- `Get-ADDisabledUser` treated `[`, `]`, `*`, and `?` in OU names as wildcards, only accepted OU paths with
+  exactly two `DC=` parts, and could not be run without excluding at least one OU. Containers (`CN=`) and
+  escaped commas are now accepted, and pressing Enter at the prompt excludes nothing.
+- `Set-RDSessionHostMode` read and changed session hosts through the broker you named, which may be the passive
+  one; it now uses the active broker.
+- `Open-PrinterWebInterface` saved the print server for any answer that did not contain "n", and asked again
+  after saving.
+- `Read-Password` accepted an empty password, and could leave a plain-text copy in memory if the comparison was
+  interrupted.
+
+### Changed
+
+- Examples and prompts use neutral names (`PC-0100`, `LAPTOP01`) instead of the naming scheme of one network.
+
 ## [0.2.0] - 2026-10-13
 
 First release after a full code review. Changes are relative to 0.0.1.

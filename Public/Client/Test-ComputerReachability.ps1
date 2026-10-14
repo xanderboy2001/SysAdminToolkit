@@ -10,10 +10,10 @@ function Test-ComputerReachability {
     One or more computer names or IP addresses. Accepts pipeline input.
 
     .PARAMETER StartName
-    First name in a numbered range, for example 'PC-1200'.
+    First name in a numbered range, for example 'PC-0100'.
 
     .PARAMETER EndName
-    Last name in a numbered range, for example 'PC-1250'. The prefix must match StartName.
+    Last name in a numbered range, for example 'PC-0150'. The prefix must match StartName.
 
     .PARAMETER StartIPAddress
     First IPv4 address in the range.
