@@ -5,6 +5,8 @@ Config/config.psd1
 Logs/
 *.patch
 SysAdminToolkit-*.zip
+# Local list of organisation-specific terms checked by the tests; never commit it.
+Tests/LocalForbiddenTerms.txt
 # Created by https://gitignore.org
 # Node.gitignore
 
@@ -151,4 +153,3 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
-

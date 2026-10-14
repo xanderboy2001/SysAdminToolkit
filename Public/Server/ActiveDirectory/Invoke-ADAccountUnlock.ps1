@@ -6,20 +6,36 @@ function Invoke-ADAccountUnlock {
     .DESCRIPTION
     This function guides the user through unlocking a locked Active Directory account.
     It prompts for a valid AD username, checks whether the account is locked, and if so,
-    requests confirmation before performing the unlock. The function provides guidance
+    asks for confirmation before performing the unlock. The function provides guidance
     to verify the user's identity prior to unlocking.
+
+    Confirmation uses the standard PowerShell prompt (ConfirmImpact High). Use -Force to skip it, or -WhatIf to
+    see which account would be unlocked.
+
+    .PARAMETER Force
+    Skips the confirmation prompt unless -Confirm is also specified.
 
     .EXAMPLE
     Invoke-ADAccountUnlock
     # Prompts for an AD username, checks the account's lock status, and unlocks it if confirmed.
 
+    .EXAMPLE
+    Invoke-ADAccountUnlock -Force
+    # Unlocks the chosen account without asking for confirmation.
+
     .NOTES
     Author: Alexander Christian
     #>
-    [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'Medium')]
+    [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'High')]
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
         Justification = 'Interactive wizard; to be split into core command + UI. See issue #1 (F-21).')]
-    param()
+    param(
+        [switch]$Force
+    )
+
+    if ($Force -and -not $PSBoundParameters.ContainsKey('Confirm')) {
+        $ConfirmPreference = 'None'
+    }
 
     Show-MenuHeader -Title 'Unlock Active Directory Account'
     Write-Host @'
@@ -36,15 +52,12 @@ If locked, the script will prompt for confirmation before unlocking the account.
         Write-Verbose "$username is locked"
         $msg = "Ensure you verify the user's identity via security questions or manager approval."
         Write-Host $msg -ForegroundColor Yellow
-        $action = "Unlock AD account for $username"
-        if (Confirm-UserChoice -Action $action) {
-            if ($PSCmdlet.ShouldProcess($username, 'Unlock AD account')) {
-                try {
-                    Unlock-ADAccount -Identity $username
-                    Write-Host "$username has been unlocked" -ForegroundColor Green
-                } catch {
-                    Write-Error "Failed to unlock ${username}: $($_.Exception.Message)"
-                }
+        if ($PSCmdlet.ShouldProcess($username, 'Unlock AD account')) {
+            try {
+                Unlock-ADAccount -Identity $username -ErrorAction Stop
+                Write-Host "$username has been unlocked" -ForegroundColor Green
+            } catch {
+                Write-Error "Failed to unlock ${username}: $($_.Exception.Message)"
             }
         }
     } else {

@@ -22,15 +22,15 @@ function Get-BatteryReport {
     comma-separated list.
 
     .EXAMPLE
-    Get-BatteryReport -ComputerName 'PC-1234'
-    # Returns battery capacity data for PC-1234.
+    Get-BatteryReport -ComputerName 'LAPTOP01'
+    # Returns battery capacity data for LAPTOP01.
 
     .EXAMPLE
-    'PC-1234', 'PC-5678' | Get-BatteryReport | Where-Object CapacityPercent -lt 60
+    'LAPTOP01', 'LAPTOP02' | Get-BatteryReport | Where-Object CapacityPercent -lt 60
     # Lists batteries below 60& of their design capacity.
 
     .EXAMPLE
-    Get-ADComputer -Filter "Name -like 'L-*'" | Get-BatteryReport -ErrorAction SilentlyContinue |
+    Get-ADComputer -Filter "Name -like 'LAPTOP*'" | Get-BatteryReport -ErrorAction SilentlyContinue |
         Export-Csv .\batteries.csv -NoTypeInformation
     # Reports every laptop that answers; unreachable ones are skipped.
 

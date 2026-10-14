@@ -4,10 +4,11 @@ function Set-RDSessionHostMode {
     Toggles the connection acceptance on one or more Remote Desktop session hosts.
 
     .DESCRIPTION
-    Resolves and verifies connectivity to the specified Connection Broker, retrieves all Remote Desktop session
-    collections of type 'Remote Desktop', and prompts the user to select a collection and then one or more session
-    hosts to toggle. Session hosts that currently allow new connections are disabled, and hosts that are disabled
-    are enabled.
+    Resolves and verifies connectivity to the specified Connection Broker, finds the active broker of its
+    high-availability group, retrieves all Remote Desktop session collections of type 'Remote Desktop' from it,
+    and prompts the user to select a collection and then one or more session hosts to toggle. All changes are
+    sent to the active broker. Session hosts that currently allow new connections are disabled, and hosts that
+    are disabled are enabled.
 
     .PARAMETER ConnectionBroker
     Optional. The hostname or FQDN of a Remote Desktop Connection Broker. If not provided, the user is prompted
@@ -35,17 +36,11 @@ function Set-RDSessionHostMode {
         $ConnectionBroker = Read-Host "Enter the name of one of the connection brokers"
     }
 
-    try {
-        $ConnectionBrokerFQDN = [System.Net.Dns]::GetHostByName($ConnectionBroker).HostName
-        Write-Host "Resolved '$ConnectionBroker' to '$ConnectionBrokerFQDN'" -ForegroundColor DarkGray
-    } catch {
-        throw "Could not resolve $ConnectionBroker"
-    }
-    Write-Host "Testing connection to $ConnectionBrokerFQDN..." -ForegroundColor Cyan
-    if (-not (Test-Connection -ComputerName $ConnectionBrokerFQDN -Count 1 -Quiet)) {
-        throw "Could not connect to $ConnectionBrokerFQDN"
-    }
-    Write-Host "Connection to $ConnectionBrokerFQDN verified." -ForegroundColor Green
+    # Changes are sent to the active broker, which owns the deployment configuration in a high-availability
+    # group; the broker you name may be the passive one.
+    $resolvedBroker = Confirm-ConnectionBroker -ConnectionBroker $ConnectionBroker
+    $ConnectionBrokerFQDN = Get-ActiveBroker -BrokerServers $resolvedBroker
+    Write-Host "Using active Connection Broker $ConnectionBrokerFQDN." -ForegroundColor Green
 
     try {
         Write-Host "Getting list of Remote Desktop Server Collections..." -ForegroundColor Cyan

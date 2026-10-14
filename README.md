@@ -68,8 +68,7 @@ To update, run `git pull` in the module folder from an elevated session, then `I
 SysAdmin Toolkit
 ├── Server
 │   ├── Active Directory   Reset Password · Unlock Account · Disable User · Start AD Sync · Get Disabled Users
-│   ├── Remote Desktop     Reboot Connection Brokers · Toggle New Connections on Server · List connected users
-│   └── Troubleshooting    Query Server Disk Type (not implemented yet)
+│   └── Remote Desktop     Reboot Connection Brokers · Toggle New Connections on Server · List connected users
 ├── Client                 Unlock a file · Battery report · Printer web interface · Test computer reachability
 └── Config                 View Config · Edit Config · Reset Config to Defaults
 ```
@@ -113,7 +112,7 @@ Examples:
 Restart-RDSBroker -WhatIf
 
 # Laptops whose batteries hold less than 60% of their design capacity.
-Get-ADComputer -Filter "Name -like 'L-*'" | Get-BatteryReport -ErrorAction SilentlyContinue |
+Get-ADComputer -Filter "Name -like 'LAPTOP*'" | Get-BatteryReport -ErrorAction SilentlyContinue |
     Where-Object CapacityPercent -lt 60
 
 # Which processes on FS01 would be stopped?
@@ -128,7 +127,7 @@ every administrator on the server. View them with **Config** > **View Config**. 
 
 | Setting | Default | Used by |
 |---|---|---|
-| `ADConnectServer` | `ADConnect` | `Invoke-ADSync`: the Entra Connect server |
+| `ADConnectServer` | *(empty: you are prompted)* | `Invoke-ADSync`: the Entra Connect server |
 | `ADSyncTimeoutSecs` | `1800` | `Invoke-ADSync`: how long to wait for a sync cycle |
 | `RDBrokerServer` | *(empty: you are prompted)* | Remote Desktop commands: any Connection Broker |
 | `RDMaxRetries` | `15` | `Restart-RDSBroker`: service checks per broker, 30 seconds apart |

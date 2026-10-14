@@ -35,7 +35,6 @@ function Get-ToolkitMenu {
             Items = @(
                 @{ Label = 'Active Directory'; Menu = 'ActiveDirectory' }
                 @{ Label = 'Remote Desktop'; Menu = 'RemoteDesktop' }
-                @{ Label = 'Troubleshooting'; Menu = 'Troubleshooting' }
             )
         }
         ActiveDirectory = @{
@@ -62,16 +61,6 @@ function Get-ToolkitMenu {
                 @{
                     Label  = 'List connected users'
                     Action = { Get-RDConnectedUser -ConnectionBroker (Get-ToolkitConfig).RDBrokerServer }
-                }
-            )
-        }
-        Troubleshooting = @{
-            Title = 'Server Troubleshooting Menu'
-            Items = @(
-                # Placeholder until Get-ServerDiskType exists (F-12).
-                @{
-                    Label  = 'Query Server Disk Type'
-                    Action = { Write-Warning "'Query Server Disk Type' is not implemented yet." }
                 }
             )
         }

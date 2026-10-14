@@ -1,16 +1,19 @@
 function Read-Password {
     <#
     .SYNOPSIS
-    Securely reads and confirms a password from the user.
+    Reads a new password twice and returns it as a SecureString once both entries match.
 
     .DESCRIPTION
-    Prompts the user to enter a password twice as a SecureString and compares the two entries
-    character-by-character using BSTR marshaling to avoid storing the password in plaintext at any point in
-    memory. Continues prompting until both entries match. Returns the confirmed password as a SecureString.
+    Prompts for the password twice with Read-Host -AsSecureString and repeats until both entries match and are not
+    empty. Returns the password as a SecureString; it is never written to a PowerShell string variable.
+
+    To compare the two entries, each is copied briefly into unmanaged memory as plain text (a BSTR). Both copies
+    are overwritten with zeros and freed in a finally block, including when the comparison fails or is
+    interrupted.
 
     .EXAMPLE
     $securePassword = Read-Password
-    # Prompts for a password twice and returns it as a SecureString once entries match.
+    # Prompts for a password twice and returns it as a SecureString once the entries match.
 
     .OUTPUTS
     System.Security.SecureString. The confirmed password.
@@ -23,42 +26,47 @@ function Read-Password {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
         Justification = 'Interactive prompt; output is for the operator, not the pipeline.')]
     param()
-    # Loop until passwords match
+
+    $marshal = [System.Runtime.InteropServices.Marshal]
+
     while ($true) {
+        $password1 = Read-Host -Prompt 'Enter Password' -AsSecureString
+        $password2 = Read-Host -Prompt 'Confirm Password' -AsSecureString
 
-        # Read password twice as secure string
-        $password1 = Read-Host 'Enter Password' -AsSecureString
-        $password2 = Read-Host 'Confirm Password' -AsSecureString
+        if ($password1.Length -eq 0) {
+            Write-Host 'The password cannot be empty. Please try again.' -ForegroundColor Red
+            continue
+        }
 
-
-        # Check that lengths are the same before bothering to check contents
+        $match = $false
         if ($password1.Length -eq $password2.Length) {
-
-            # Convert secure string to byte array (so password is never in plaintext, even in memory)
-            $bstr1 = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($password1)
-            $bstr2 = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($password2)
-
-            # Iterate over characters in byte array, check if they match
-            $match = $true
-            for ($i = 0; $i -lt $password1.Length; $i++) {
-                $char1 = [System.Runtime.InteropServices.Marshal]::ReadInt16($bstr1, $i * 2)
-                $char2 = [System.Runtime.InteropServices.Marshal]::ReadInt16($bstr2, $i * 2)
-
-                # End checks and break out of for loop (back to while) if difference is detected
-                if ($char1 -ne $char2) {
-                    $match = $false
-                    break
+            $bstr1 = [IntPtr]::Zero
+            $bstr2 = [IntPtr]::Zero
+            try {
+                $bstr1 = $marshal::SecureStringToBSTR($password1)
+                $bstr2 = $marshal::SecureStringToBSTR($password2)
+                $match = $true
+                for ($i = 0; $i -lt $password1.Length; $i++) {
+                    # BSTRs are UTF-16, so each character is two bytes.
+                    if ($marshal::ReadInt16($bstr1, $i * 2) -ne $marshal::ReadInt16($bstr2, $i * 2)) {
+                        $match = $false
+                        break
+                    }
+                }
+            } finally {
+                if ($bstr1 -ne [IntPtr]::Zero) {
+                    $marshal::ZeroFreeBSTR($bstr1)
+                }
+                if ($bstr2 -ne [IntPtr]::Zero) {
+                    $marshal::ZeroFreeBSTR($bstr2)
                 }
             }
+        }
 
-            # Clear byte arrays from memory
-            [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr1)
-            [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr2)
-
-            if ($match) {
-                Write-Host 'Passwords match' -ForegroundColor Green
-                return $password1
-            }
+        if ($match) {
+            $password2.Dispose()
+            Write-Host 'Passwords match' -ForegroundColor Green
+            return $password1
         }
 
         Write-Host 'Passwords do not match. Please try again.' -ForegroundColor Red
