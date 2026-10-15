@@ -8,6 +8,8 @@ may contain breaking changes; they are listed under **Breaking** in each entry.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-15
+
 ### Breaking
 
 - `Get-RDConnectedUser` returns one object per session (`SessionHost`, `CollectionName`, `UserName`,
@@ -164,7 +166,8 @@ First release after a full code review. Changes are relative to 0.0.1.
 
 - Initial version.
 
-[Unreleased]: https://github.com/xanderboy2001/SysAdminToolkit/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/xanderboy2001/SysAdminToolkit/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/xanderboy2001/SysAdminToolkit/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/xanderboy2001/SysAdminToolkit/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/xanderboy2001/SysAdminToolkit/releases/tag/v0.2.0
 [0.0.1]: https://github.com/xanderboy2001/SysAdminToolkit/commits/main
