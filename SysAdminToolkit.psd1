@@ -3,7 +3,7 @@
     RootModule           = 'SysAdminToolkit.psm1'
 
     # Versioning
-    ModuleVersion        = '0.3.0'
+    ModuleVersion        = '0.4.0'
     CompatiblePSEditions = @('Core')
 
     # General Metadata
