@@ -79,15 +79,8 @@ function Restart-RDSBroker {
                 $BrokerServer = $config.RDBrokerServer
             }
         }
-        try {
-            $BrokerServerFQDN = [System.Net.Dns]::GetHostByName($BrokerServer).HostName.ToUpper()
-        } catch [System.Net.Sockets.SocketException] {
-            throw "Could not resolve hostname '$BrokerServer': $($_.Exception.Message)"
-        }
-        Write-Host "Testing connection to $BrokerServerFQDN..." -ForegroundColor Cyan
-        if (-not (Test-Connection -ComputerName $BrokerServerFQDN -Count 1 -Quiet)) {
-            throw "Could not connect to $BrokerServerFQDN"
-        }
+        Write-Host "Checking $BrokerServer (DNS and WinRM)..." -ForegroundColor Cyan
+        $BrokerServerFQDN = Confirm-ConnectionBroker -ConnectionBroker $BrokerServer
         Write-Host "Connection to $BrokerServerFQDN verified." -ForegroundColor Green
         try {
             Write-Host "Getting list of broker servers..." -ForegroundColor Cyan
@@ -99,7 +92,15 @@ function Restart-RDSBroker {
             $BrokerServers = (Get-RDServer @ServerParams).Server
             Write-Host "Retrieved list of broker servers." -ForegroundColor Green
         } catch {
-            throw "Failed to get list of broker servers from ${BrokerServerFQDN}: $($_.Exception.Message)"
+            $errorParams = @{
+                Message        = "Failed to get the list of broker servers from ${BrokerServerFQDN}: " +
+                $_.Exception.Message
+                InnerException = $_.Exception
+                ErrorId        = 'BrokerListFailed'
+                Category       = 'ConnectionError'
+                TargetObject   = $BrokerServerFQDN
+            }
+            $PSCmdlet.ThrowTerminatingError((New-ToolkitErrorRecord @errorParams))
         }
     }
 

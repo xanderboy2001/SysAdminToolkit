@@ -1,25 +1,32 @@
 function Confirm-ConnectionBroker {
+    <#
+    .SYNOPSIS
+    Resolves a Connection Broker name and checks that it accepts PowerShell remoting.
+
+    .DESCRIPTION
+    Returns the broker's fully qualified name in upper case, as the RDS cmdlets report broker names. Throws a
+    terminating error (from Resolve-ToolkitHost) if the name does not resolve or WinRM does not answer.
+
+    .PARAMETER ConnectionBroker
+    The host name or FQDN of a Connection Broker.
+
+    .EXAMPLE
+    Confirm-ConnectionBroker -ConnectionBroker 'broker01'
+    # Returns 'BROKER01.CONTOSO.COM'.
+
+    .OUTPUTS
+    System.String
+
+    .NOTES
+    Author: Alexander Christian
+    #>
+    [CmdletBinding()]
     [OutputType([string])]
     param(
-        [Parameter(
-            Mandatory,
-            HelpMessage = "The hostname of a RDS Connection Broker to validate."
-        )]
+        [Parameter(Mandatory, HelpMessage = "The hostname of a RDS Connection Broker to validate.")]
         [ValidateNotNullOrEmpty()]
         [string]$ConnectionBroker
     )
 
-    try {
-        $BrokerFQDN = [System.Net.Dns]::GetHostByName($ConnectionBroker).HostName.ToUpper()
-    } catch [System.Net.Sockets.SocketException] {
-        throw "Could not resolve hostname '$ConnectionBroker': $($_.Exception.Message)"
-    }
-    Write-Verbose "Resolved '$ConnectionBroker' to '$BrokerFQDN'"
-
-    Write-Verbose "Testing connection to '$BrokerFQDN'..."
-    if (-not (Test-Connection -ComputerName $BrokerFQDN -Count 1 -Quiet)) {
-        throw "Could not connect to '$BrokerFQDN'"
-    }
-    Write-Verbose "Connection to '$BrokerFQDN' verified."
-    $BrokerFQDN
+    (Resolve-ToolkitHost -Name $ConnectionBroker -RequireWinRM).ToUpper()
 }

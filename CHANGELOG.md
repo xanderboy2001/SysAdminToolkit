@@ -40,6 +40,15 @@ may contain breaking changes; they are listed under **Breaking** in each entry.
 ### Changed
 
 - Examples and prompts use neutral names (`PC-0100`, `LAPTOP01`) instead of the naming scheme of one network.
+- `Restart-RDSBroker`, `Set-RDSessionHostMode`, `Get-RDConnectedUser`, `Invoke-ADSync`, and `Stop-FileLock`
+  check that a server resolves in DNS and accepts PowerShell remoting (WinRM) instead of pinging it. Servers
+  that block ping now work; servers that answer ping but have WinRM turned off now fail before anything is
+  changed, with a message that says so. `Restart-ServerAndWait` uses the same check before each reboot.
+  `Open-PrinterWebInterface` only checks DNS for the print server.
+- Errors from these commands keep the original exception in `$Error[0].Exception.InnerException` and have
+  `FullyQualifiedErrorId` values that start with `SysAdminToolkit.` (for example
+  `SysAdminToolkit.WinRMUnavailable`), so scripts can tell failures apart.
+- Host names are resolved with `Dns.GetHostEntry` instead of the obsolete `Dns.GetHostByName`.
 
 ## [0.2.0] - 2026-10-13
 

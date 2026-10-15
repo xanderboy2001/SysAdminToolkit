@@ -236,7 +236,7 @@ Describe 'Test-ComputerReachability (integration)' -Tag 'Integration' {
 Describe 'Stop-FileLock' {
     BeforeEach {
         Mock -ModuleName SysAdminToolkit Get-ToolkitConfig { @{ SysinternalsPath = 'C:\Tools' } }
-        Mock -ModuleName SysAdminToolkit Test-WSMan { }
+        Mock -ModuleName SysAdminToolkit Resolve-ToolkitHost { $Name }
         Mock -ModuleName SysAdminToolkit Read-Host { throw 'Read-Host must not be called' }
         Mock -ModuleName SysAdminToolkit Stop-Process { }
         Mock -ModuleName SysAdminToolkit Get-FileLockProcess {
@@ -284,7 +284,7 @@ Describe 'Stop-FileLock' {
 Describe 'Restart-RDSBroker' {
     BeforeEach {
         Mock -ModuleName SysAdminToolkit Get-ToolkitConfig { @{ RDTimeoutSecs = 600; RDMaxRetries = 15 } }
-        Mock -ModuleName SysAdminToolkit Test-Connection { $true }
+        Mock -ModuleName SysAdminToolkit Confirm-ConnectionBroker { 'B1.CONTOSO.TEST' }
         Mock -ModuleName SysAdminToolkit Write-Host { }
         Mock -ModuleName SysAdminToolkit Restart-ServerAndWait { }
         Mock -ModuleName SysAdminToolkit Switch-ActiveBroker { }
@@ -481,16 +481,16 @@ Describe 'Restart-ServerAndWait' {
         InModuleScope SysAdminToolkit {
             Mock Write-Information { }
             Mock Start-Sleep { }
-            Mock Test-Connection { $true }
+            Mock Resolve-ToolkitHost { $Name }
             # Fake host names only: if a mock ever failed, nothing real could be rebooted.
             Mock Restart-Computer { }
             Mock Wait-RDMService { }
         }
     }
 
-    It 'does not reboot a server that does not answer a ping' {
+    It 'does not reboot a server that does not accept PowerShell remoting' {
         InModuleScope SysAdminToolkit {
-            Mock Test-Connection { $false }
+            Mock Resolve-ToolkitHost { throw 'WinRM is not available for test' }
 
             { Restart-ServerAndWait -ComputerName 'B2.CONTOSO.TEST' -TimeoutSecs 60 -MaxRetries 1 } |
                 Should -Throw '*not reachable*not rebooted*'
@@ -1114,9 +1114,9 @@ Describe 'Invoke-ADSync' {
         Mock -ModuleName SysAdminToolkit Show-MenuHeader { }
         Mock -ModuleName SysAdminToolkit Write-Host { }
         Mock -ModuleName SysAdminToolkit Read-Host { throw 'Read-Host must not be called' }
-        Mock -ModuleName SysAdminToolkit Test-Connection { $true }
+        Mock -ModuleName SysAdminToolkit Resolve-ToolkitHost { 'ADCONNECT.CONTOSO.TEST' }
         Mock -ModuleName SysAdminToolkit Get-ToolkitConfig {
-            @{ ADConnectServer = 'localhost'; ADSyncTimeoutSecs = 900 }
+            @{ ADConnectServer = 'adconnect'; ADSyncTimeoutSecs = 900 }
         }
     }
 
@@ -1538,5 +1538,101 @@ Describe 'Set-RDSessionHostMode uses the active broker (F-05)' {
                 "$Object" -like '*active Connection Broker B2.CONTOSO.TEST*'
             }
         }
+    }
+}
+
+Describe 'Resolve-ToolkitHost (F-16)' {
+    It 'resolves a name in DNS without checking WinRM by default' {
+        InModuleScope SysAdminToolkit {
+            Mock Test-WSMan { throw 'must not be called' }
+
+            Resolve-ToolkitHost -Name 'localhost' | Should -Not -BeNullOrEmpty
+
+            Should -Invoke Test-WSMan -Times 0 -Exactly
+        }
+    }
+
+    It 'returns an IP address unchanged' {
+        InModuleScope SysAdminToolkit {
+            Resolve-ToolkitHost -Name ' 10.0.0.5 ' | Should -Be '10.0.0.5'
+        }
+    }
+
+    It 'throws HostNotResolved with the DNS exception kept as the inner exception' {
+        InModuleScope SysAdminToolkit {
+            # The .invalid top-level domain never resolves (RFC 2606).
+            $failure = { Resolve-ToolkitHost -Name 'no-such-host.invalid' } | Should -Throw -PassThru
+
+            $failure.FullyQualifiedErrorId | Should -BeLike 'SysAdminToolkit.HostNotResolved*'
+            $failure.Exception.Message | Should -BeLike "*Could not resolve 'no-such-host.invalid'*"
+            $failure.Exception.InnerException | Should -Not -BeNullOrEmpty
+        }
+    }
+
+    It 'checks WinRM against the resolved name with -RequireWinRM' {
+        InModuleScope SysAdminToolkit {
+            Mock Test-WSMan { }
+
+            $resolved = Resolve-ToolkitHost -Name '10.0.0.5' -RequireWinRM
+
+            $resolved | Should -Be '10.0.0.5'
+            Should -Invoke Test-WSMan -Times 1 -Exactly -ParameterFilter { $ComputerName -eq '10.0.0.5' }
+        }
+    }
+
+    It 'throws WinRMUnavailable with the WinRM exception kept as the inner exception' {
+        InModuleScope SysAdminToolkit {
+            Mock Test-WSMan { throw [System.TimeoutException]::new('WinRM timed out') }
+
+            $failure = { Resolve-ToolkitHost -Name '10.0.0.5' -RequireWinRM } | Should -Throw -PassThru
+
+            $failure.FullyQualifiedErrorId | Should -BeLike 'SysAdminToolkit.WinRMUnavailable*'
+            $failure.Exception.Message | Should -BeLike '*WinRM timed out*'
+            $failure.Exception.InnerException | Should -BeOfType [System.TimeoutException]
+        }
+    }
+}
+
+Describe 'Errors keep the original exception (F-20)' {
+    It 'Restart-RDSBroker keeps the Get-RDServer exception when listing brokers fails' {
+        Mock -ModuleName SysAdminToolkit Get-ToolkitConfig { @{ RDTimeoutSecs = 600; RDMaxRetries = 15 } }
+        Mock -ModuleName SysAdminToolkit Write-Host { }
+        Mock -ModuleName SysAdminToolkit Confirm-ConnectionBroker { 'B1.CONTOSO.TEST' }
+        Mock -ModuleName SysAdminToolkit Restart-ServerAndWait { }
+        Mock -ModuleName SysAdminToolkit Get-RDServer { throw [System.TimeoutException]::new('RPC timed out') }
+
+        $failure = { Restart-RDSBroker -BrokerServer 'b1' -Force } | Should -Throw -PassThru
+
+        $failure.FullyQualifiedErrorId | Should -BeLike 'SysAdminToolkit.BrokerListFailed*'
+        $failure.Exception.InnerException | Should -BeOfType [System.TimeoutException]
+        Should -Invoke -ModuleName SysAdminToolkit Restart-ServerAndWait -Times 0 -Exactly
+    }
+
+    It 'no source file throws a string that only copies the original error message' {
+        $root = Join-Path $PSScriptRoot '..'
+        $parser = [System.Management.Automation.Language.Parser]
+        $files = Get-ChildItem -Path "$root/Private", "$root/Public" -Filter '*.ps1' -Recurse
+        $isThrow = { $args[0] -is [System.Management.Automation.Language.ThrowStatementAst] }
+        $offenders = foreach ($file in $files) {
+            $ast = $parser::ParseFile($file.FullName, [ref]$null, [ref]$null)
+            $throws = $ast.FindAll($isThrow, $true)
+            foreach ($throw in $throws) {
+                $text = "$($throw.Pipeline)"
+                if ($text -match '^["(]' -and $text -match '\$\(\$_\.Exception\.Message\)') {
+                    '{0}:{1}' -f $file.Name, $throw.Extent.StartLineNumber
+                }
+            }
+        }
+        $offenders | Should -BeNullOrEmpty -Because 'use New-ToolkitErrorRecord and keep the inner exception'
+    }
+
+    It 'no source file uses the obsolete Dns.GetHostByName, and only Invoke-Ping pings' {
+        $root = Join-Path $PSScriptRoot '..'
+        $files = Get-ChildItem -Path "$root/Private", "$root/Public" -Filter '*.ps1' -Recurse
+        @($files | Select-String -Pattern 'GetHostByName' -SimpleMatch) | Should -BeNullOrEmpty
+        # (?!\s*#) skips comment lines.
+        $pings = $files | Where-Object Name -NE 'Invoke-Ping.ps1' |
+            Select-String -Pattern '^(?!\s*#).*\bTest-Connection\b'
+        @($pings) | Should -BeNullOrEmpty
     }
 }

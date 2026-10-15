@@ -50,15 +50,7 @@ function Invoke-ADSync {
         $ADConnectServer = Read-Host "Enter the name of the AD Connect Server"
     }
 
-    try {
-        $ADConnectServerResolved = [System.Net.Dns]::GetHostByName($ADConnectServer).HostName
-    } catch [System.Net.Sockets.SocketException] {
-        throw "Could not resolve hostname '$ADConnectServer': $($_.Exception.Message)"
-    }
-    Write-Verbose "Verifying connection to $ADConnectServerResolved..."
-    if (-not (Test-Connection -ComputerName $ADConnectServerResolved -Count 1 -Quiet)) {
-        throw "$ADConnectServerResolved is not reachable"
-    }
+    $ADConnectServerResolved = Resolve-ToolkitHost -Name $ADConnectServer -RequireWinRM
     Write-Host "Connection to $ADConnectServerResolved verified." -ForegroundColor Green
 
     if (-not $PSCmdlet.ShouldProcess($ADConnectServerResolved, "Start Entra Connect delta sync cycle")) {
