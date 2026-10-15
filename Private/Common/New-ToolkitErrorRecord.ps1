@@ -37,7 +37,7 @@ function New-ToolkitErrorRecord {
     #>
     [CmdletBinding()]
     [OutputType([System.Management.Automation.ErrorRecord])]
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSShouldProcessForStateChangingFunctions', '',
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Only creates an object in memory; changes no system state.')]
     param(
         [Parameter(Mandatory)]
