@@ -1623,7 +1623,7 @@ Describe 'Errors keep the original exception (F-20)' {
                 }
             }
         }
-        $offenders | Should -BeNullOrEmpty -Because 'use New-ToolkitErrorRecord and keep the inner exception'
+        $offenders | Should -BeNullOrEmpty -Because 'use Get-ToolkitErrorRecord and keep the inner exception'
     }
 
     It 'no source file uses the obsolete Dns.GetHostByName, and only Invoke-Ping pings' {

@@ -58,7 +58,7 @@ function Set-RDSessionHostMode {
             Category       = 'ConnectionError'
             TargetObject   = $ConnectionBrokerFQDN
         }
-        $PSCmdlet.ThrowTerminatingError((New-ToolkitErrorRecord @errorParams))
+        $PSCmdlet.ThrowTerminatingError((Get-ToolkitErrorRecord @errorParams))
     }
     if ($ServerCollections) {
         Write-Host "Found $($ServerCollections.Count) server collections." -ForegroundColor Green
@@ -102,7 +102,7 @@ function Set-RDSessionHostMode {
             Category       = 'ConnectionError'
             TargetObject   = $SelectedCollection
         }
-        $PSCmdlet.ThrowTerminatingError((New-ToolkitErrorRecord @errorParams))
+        $PSCmdlet.ThrowTerminatingError((Get-ToolkitErrorRecord @errorParams))
     }
 
     if ($Servers) {
@@ -147,7 +147,7 @@ function Set-RDSessionHostMode {
                     Category       = 'WriteError'
                     TargetObject   = $server.SessionHost
                 }
-                $PSCmdlet.ThrowTerminatingError((New-ToolkitErrorRecord @errorParams))
+                $PSCmdlet.ThrowTerminatingError((Get-ToolkitErrorRecord @errorParams))
             }
         } else {
             try {
@@ -170,7 +170,7 @@ function Set-RDSessionHostMode {
                     Category       = 'WriteError'
                     TargetObject   = $server.SessionHost
                 }
-                $PSCmdlet.ThrowTerminatingError((New-ToolkitErrorRecord @errorParams))
+                $PSCmdlet.ThrowTerminatingError((Get-ToolkitErrorRecord @errorParams))
             }
         }
     }
