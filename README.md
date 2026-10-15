@@ -87,7 +87,7 @@ Every command can also be run on its own. Use `Get-Help <command> -Full` for det
 |---|---|---|
 | `Start-ToolkitMenu` | Opens the toolkit menu | No |
 | `Invoke-ADPasswordReset` | Resets an AD user's password and unlocks the account | Yes: asks for confirmation |
-| `Invoke-ADAccountUnlock` | Unlocks a locked AD account | Yes: asks for confirmation |
+| `Invoke-ADAccountUnlock` | Unlocks locked AD accounts; accepts pipeline input | Yes: asks for confirmation |
 | `Invoke-ADAccountDisable` | Disables an AD account | Yes: asks for confirmation |
 | `Invoke-ADSync` | Runs an Entra Connect delta sync and waits for it to finish | Yes: supports `-WhatIf` |
 | `Get-ADDisabledUser` | Lists disabled AD accounts, leaving out chosen OUs | No |
@@ -103,12 +103,15 @@ Every command can also be run on its own. Use `Get-Help <command> -Full` for det
 The interactive commands prompt for anything you do not pass as a parameter. Most of them print their results
 instead of returning objects; changing that is tracked in
 [issue #1](https://github.com/xanderboy2001/SysAdminToolkit/issues/1). `Get-BatteryReport`,
-`Test-ComputerReachability`, `Get-ADDisabledUser`, `Get-RDConnectedUser`, and `Stop-FileLock` return objects you
-can pipe and export.
+`Test-ComputerReachability`, `Get-ADDisabledUser`, `Get-RDConnectedUser`, `Invoke-ADAccountUnlock`, and
+`Stop-FileLock` return objects you can pipe and export.
 
 Examples:
 
 ```powershell
+# Unlock every locked user account, after confirming each one.
+Search-ADAccount -LockedOut -UsersOnly | Invoke-ADAccountUnlock
+
 # Who is connected to rds1, and in what state?
 Get-RDConnectedUser -SessionHost rds1 | Select-Object -Property FullName, UserName, SessionState
 

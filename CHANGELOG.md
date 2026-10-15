@@ -15,10 +15,16 @@ may contain breaking changes; they are listed under **Breaking** in each entry.
   the `RDBrokerServer` setting; without `-CollectionName` and `-SessionHost` it returns every session. The
   pick-a-collection-and-host version is now only in the menu (**Server > Remote Desktop > List connected
   users**) ([#1](https://github.com/xanderboy2001/SysAdminToolkit/issues/1)).
+- `Invoke-ADAccountUnlock` requires `-Identity` and never prompts for a username. It returns one object per
+  account (`SamAccountName`, `Name`, `DistinguishedName`, `WasLocked`, `Result`) instead of printing messages.
+  The prompt-for-a-username version is now only in the menu (**Server > Active Directory > Unlock Account**)
+  ([#1](https://github.com/xanderboy2001/SysAdminToolkit/issues/1)).
 
 ### Added
 
 - `Get-RDConnectedUser -CollectionName` and `-SessionHost`.
+- `Invoke-ADAccountUnlock` accepts several identities and pipeline input, for example from
+  `Search-ADAccount -LockedOut`.
 
 ## [0.3.0] - 2026-10-15
 
