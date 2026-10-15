@@ -42,7 +42,7 @@ function Get-ToolkitMenu {
             Items = @(
                 @{ Label = 'Reset Password'; Action = { Invoke-ADPasswordReset } }
                 @{ Label = 'Unlock Account'; Action = { Show-ADAccountUnlock } }
-                @{ Label = 'Disable User'; Action = { Invoke-ADAccountDisable } }
+                @{ Label = 'Disable User'; Action = { Show-ADAccountDisable } }
                 @{ Label = 'Start AD Sync'; Action = { Invoke-ADSync } }
                 @{ Label = 'Get Disabled Users'; Action = { Get-ADDisabledUser } }
             )

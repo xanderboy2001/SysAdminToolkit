@@ -1480,7 +1480,7 @@ Describe 'AD account commands use one standard confirmation (F-10)' {
             Mock Write-Host { }
             Mock Confirm-UserChoice { throw 'Confirm-UserChoice must not be called' }
             Mock Get-ValidADUser { [pscustomobject]@{ SamAccountName = 'jdoe'; Name = 'John Doe' } }
-            Mock Get-ADUser { [pscustomobject]@{ SamAccountName = 'jdoe'; LockedOut = $true } }
+            Mock Get-ADUser { [pscustomobject]@{ SamAccountName = 'jdoe'; LockedOut = $true; Enabled = $true } }
             Mock Read-Password { [System.Security.SecureString]::new() }
             Mock Set-ADAccountPassword { }
             Mock Unlock-ADAccount { }
@@ -1520,7 +1520,7 @@ Describe 'AD account commands use one standard confirmation (F-10)' {
 
     It 'Invoke-ADAccountDisable -Force disables without prompting' {
         InModuleScope SysAdminToolkit {
-            Invoke-ADAccountDisable -Force
+            $null = Invoke-ADAccountDisable -Identity 'jdoe' -Force
 
             Should -Invoke Disable-ADAccount -Times 1 -Exactly
         }
@@ -1966,6 +1966,180 @@ Describe 'Show-ADAccountUnlock (menu wrapper)' {
 
             "$menuWarnings" | Should -BeLike '*not locked*'
             Should -Invoke Invoke-ADAccountUnlock -Times 0 -Exactly
+        }
+    }
+}
+
+Describe 'Invoke-ADAccountDisable returns objects (F-21, issue #1)' {
+    BeforeEach {
+        InModuleScope SysAdminToolkit {
+            Mock Read-Host { throw 'Read-Host must not be called' }
+            Mock Write-Host { throw 'Write-Host must not be called' }
+            Mock Get-ValidADUser { throw 'Get-ValidADUser must not be called' }
+            Mock Disable-ADAccount { }
+            # Accounts returned by Get-ADUser, in call order.
+            $script:adAccounts = [System.Collections.Generic.Queue[object]]::new()
+            Mock Get-ADUser {
+                $next = $script:adAccounts.Dequeue()
+                if ($next -is [System.Exception]) {
+                    throw $next
+                }
+                $next
+            }
+            function script:New-TestAccount {
+                param([string]$Sam, [bool]$Enabled, $AdminCount = $null)
+                [pscustomobject]@{
+                    SamAccountName    = $Sam
+                    Name              = "Name $Sam"
+                    DistinguishedName = "CN=$Sam,OU=Users,DC=contoso,DC=test"
+                    Enabled           = $Enabled
+                    adminCount        = $AdminCount
+                }
+            }
+        }
+    }
+
+    It 'requires -Identity' {
+        $identity = (Get-Command -Name Invoke-ADAccountDisable).Parameters['Identity']
+        $identity.Attributes.Where({ $_ -is [System.Management.Automation.ParameterAttribute] }).Mandatory |
+            Should -Contain $true
+    }
+
+    It 'disables an enabled account and returns Disabled' {
+        InModuleScope SysAdminToolkit {
+            $script:adAccounts.Enqueue((New-TestAccount -Sam 'jdoe' -Enabled $true))
+
+            $result = Invoke-ADAccountDisable -Identity 'jdoe' -Force
+
+            $result.Result | Should -Be 'Disabled'
+            $result.WasEnabled | Should -BeTrue
+            $result.Name | Should -Be 'Name jdoe'
+            Should -Invoke Disable-ADAccount -Times 1 -Exactly
+        }
+    }
+
+    It 'leaves an account that is already disabled alone and returns AlreadyDisabled' {
+        InModuleScope SysAdminToolkit {
+            $script:adAccounts.Enqueue((New-TestAccount -Sam 'jdoe' -Enabled $false))
+
+            $result = Invoke-ADAccountDisable -Identity 'jdoe' -Force
+
+            $result.Result | Should -Be 'AlreadyDisabled'
+            Should -Invoke Disable-ADAccount -Times 0 -Exactly
+        }
+    }
+
+    It 'reports a missing account as an error and still processes the next identity' {
+        InModuleScope SysAdminToolkit {
+            $script:adAccounts.Enqueue([Microsoft.ActiveDirectory.Management.ADIdentityNotFoundException]::new())
+            $script:adAccounts.Enqueue((New-TestAccount -Sam 'asmith' -Enabled $true))
+
+            $result = @(Invoke-ADAccountDisable -Identity 'ghost', 'asmith' -Force -ErrorVariable disableErrors `
+                    -ErrorAction SilentlyContinue)
+
+            $result.Count | Should -Be 1
+            $result[0].SamAccountName | Should -Be 'asmith'
+            $notFound = @($disableErrors | Where-Object {
+                    $_ -is [System.Management.Automation.ErrorRecord] -and
+                    $_.FullyQualifiedErrorId -like 'SysAdminToolkit.UserNotFound*'
+                })
+            $notFound.Count | Should -Be 1
+        }
+    }
+
+    It 'accepts objects with a SamAccountName property from the pipeline' {
+        InModuleScope SysAdminToolkit {
+            $script:adAccounts.Enqueue((New-TestAccount -Sam 'jdoe' -Enabled $true))
+            $script:adAccounts.Enqueue((New-TestAccount -Sam 'asmith' -Enabled $true))
+
+            $result = @(
+                [pscustomobject]@{ SamAccountName = 'jdoe' }, [pscustomobject]@{ SamAccountName = 'asmith' } |
+                    Invoke-ADAccountDisable -Force
+            )
+
+            $result.SamAccountName | Should -Be @('jdoe', 'asmith')
+            Should -Invoke Disable-ADAccount -Times 2 -Exactly
+        }
+    }
+
+    It 'changes nothing and returns nothing with -WhatIf' {
+        InModuleScope SysAdminToolkit {
+            $script:adAccounts.Enqueue((New-TestAccount -Sam 'jdoe' -Enabled $true))
+
+            $result = Invoke-ADAccountDisable -Identity 'jdoe' -WhatIf
+
+            $result | Should -BeNullOrEmpty
+            Should -Invoke Disable-ADAccount -Times 0 -Exactly
+        }
+    }
+
+    It 'warns before disabling a protected (adminCount = 1) account' {
+        InModuleScope SysAdminToolkit {
+            $script:adAccounts.Enqueue((New-TestAccount -Sam 'admin.jdoe' -Enabled $true -AdminCount 1))
+
+            $null = Invoke-ADAccountDisable -Identity 'admin.jdoe' -Force -WarningVariable disableWarnings `
+                -WarningAction SilentlyContinue
+
+            "$disableWarnings" | Should -BeLike '*protected administrative group*'
+        }
+    }
+
+    It 'returns Failed and keeps the original exception when the disable fails' {
+        InModuleScope SysAdminToolkit {
+            $script:adAccounts.Enqueue((New-TestAccount -Sam 'jdoe' -Enabled $true))
+            Mock Disable-ADAccount { throw [System.UnauthorizedAccessException]::new('Access is denied') }
+
+            $result = Invoke-ADAccountDisable -Identity 'jdoe' -Force -ErrorVariable disableErrors `
+                -ErrorAction SilentlyContinue
+
+            $result.Result | Should -Be 'Failed'
+            $failed = @($disableErrors | Where-Object {
+                    $_ -is [System.Management.Automation.ErrorRecord] -and
+                    $_.FullyQualifiedErrorId -like 'SysAdminToolkit.DisableFailed*'
+                })
+            $failed.Count | Should -Be 1
+            $failed[0].Exception.InnerException | Should -BeOfType [System.UnauthorizedAccessException]
+        }
+    }
+
+    It 'has no PSAvoidUsingWriteHost suppression any more' {
+        $path = Join-Path $script:moduleRoot 'Public/Server/ActiveDirectory/Invoke-ADAccountDisable.ps1'
+        Select-String -LiteralPath $path -Pattern 'PSAvoidUsingWriteHost' -SimpleMatch | Should -BeNullOrEmpty
+    }
+}
+
+Describe 'Show-ADAccountDisable (menu wrapper)' {
+    BeforeEach {
+        InModuleScope SysAdminToolkit {
+            Mock Show-MenuHeader { }
+            Mock Write-Host { }
+            Mock Get-ValidADUser { [pscustomobject]@{ SamAccountName = 'jdoe' } }
+        }
+    }
+
+    It 'disables the chosen account' {
+        InModuleScope SysAdminToolkit {
+            Mock Invoke-ADAccountDisable {
+                [pscustomobject]@{ SamAccountName = 'jdoe'; Name = 'John Doe'; Result = 'Disabled' }
+            }
+
+            Show-ADAccountDisable
+
+            Should -Invoke Invoke-ADAccountDisable -Times 1 -Exactly -ParameterFilter {
+                $Identity -contains 'jdoe'
+            }
+        }
+    }
+
+    It 'warns when the account is already disabled' {
+        InModuleScope SysAdminToolkit {
+            Mock Invoke-ADAccountDisable {
+                [pscustomobject]@{ SamAccountName = 'jdoe'; Name = 'John Doe'; Result = 'AlreadyDisabled' }
+            }
+
+            Show-ADAccountDisable -WarningVariable menuWarnings -WarningAction SilentlyContinue
+
+            "$menuWarnings" | Should -BeLike '*already disabled*'
         }
     }
 }

@@ -19,12 +19,18 @@ may contain breaking changes; they are listed under **Breaking** in each entry.
   account (`SamAccountName`, `Name`, `DistinguishedName`, `WasLocked`, `Result`) instead of printing messages.
   The prompt-for-a-username version is now only in the menu (**Server > Active Directory > Unlock Account**)
   ([#1](https://github.com/xanderboy2001/SysAdminToolkit/issues/1)).
+- `Invoke-ADAccountDisable` requires `-Identity` and never prompts for a username. It returns one object per
+  account (`SamAccountName`, `Name`, `DistinguishedName`, `WasEnabled`, `Result`) instead of printing messages.
+  The prompt-for-a-username version is now only in the menu (**Server > Active Directory > Disable User**)
+  ([#1](https://github.com/xanderboy2001/SysAdminToolkit/issues/1)).
 
 ### Added
 
 - `Get-RDConnectedUser -CollectionName` and `-SessionHost`.
 - `Invoke-ADAccountUnlock` accepts several identities and pipeline input, for example from
   `Search-ADAccount -LockedOut`.
+- `Invoke-ADAccountDisable` accepts several identities and pipeline input, and leaves accounts that are already
+  disabled alone.
 
 ## [0.3.0] - 2026-10-15
 
