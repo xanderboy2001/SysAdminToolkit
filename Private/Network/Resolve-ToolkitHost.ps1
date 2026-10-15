@@ -57,7 +57,7 @@ function Resolve-ToolkitHost {
                 Category       = 'ObjectNotFound'
                 TargetObject   = $target
             }
-            $PSCmdlet.ThrowTerminatingError((New-ToolkitErrorRecord @errorParams))
+            $PSCmdlet.ThrowTerminatingError((Get-ToolkitErrorRecord @errorParams))
         }
     }
     Write-Verbose "Resolved '$target' to '$hostName'."
@@ -73,7 +73,7 @@ function Resolve-ToolkitHost {
                 Category       = 'ConnectionError'
                 TargetObject   = $hostName
             }
-            $PSCmdlet.ThrowTerminatingError((New-ToolkitErrorRecord @errorParams))
+            $PSCmdlet.ThrowTerminatingError((Get-ToolkitErrorRecord @errorParams))
         }
         Write-Verbose "WinRM is available on '$hostName'."
     }

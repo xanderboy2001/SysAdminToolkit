@@ -100,7 +100,7 @@ function Restart-RDSBroker {
                 Category       = 'ConnectionError'
                 TargetObject   = $BrokerServerFQDN
             }
-            $PSCmdlet.ThrowTerminatingError((New-ToolkitErrorRecord @errorParams))
+            $PSCmdlet.ThrowTerminatingError((Get-ToolkitErrorRecord @errorParams))
         }
     }
 

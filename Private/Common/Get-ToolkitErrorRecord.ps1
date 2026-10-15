@@ -1,4 +1,4 @@
-function New-ToolkitErrorRecord {
+function Get-ToolkitErrorRecord {
     <#
     .SYNOPSIS
     Builds an ErrorRecord that keeps the original exception as its inner exception.
@@ -25,7 +25,7 @@ function New-ToolkitErrorRecord {
 
     .EXAMPLE
     try { Get-RDServer -ConnectionBroker $broker -ErrorAction Stop } catch {
-        $PSCmdlet.ThrowTerminatingError((New-ToolkitErrorRecord -Message "Could not list brokers." `
+        $PSCmdlet.ThrowTerminatingError((Get-ToolkitErrorRecord -Message "Could not list brokers." `
                     -InnerException $_.Exception -ErrorId 'BrokerListFailed' -TargetObject $broker))
     }
 

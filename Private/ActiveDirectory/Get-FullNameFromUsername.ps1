@@ -33,6 +33,6 @@ function Get-FullNameFromUsername {
             Category       = 'ObjectNotFound'
             TargetObject   = $UserName
         }
-        $PSCmdlet.ThrowTerminatingError((New-ToolkitErrorRecord @errorParams))
+        $PSCmdlet.ThrowTerminatingError((Get-ToolkitErrorRecord @errorParams))
     }
 }

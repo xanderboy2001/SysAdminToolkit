@@ -83,7 +83,7 @@ function Initialize-ToolkitConfig {
             Category       = 'InvalidData'
             TargetObject   = $script:ConfigPath
         }
-        $PSCmdlet.ThrowTerminatingError((New-ToolkitErrorRecord @errorParams))
+        $PSCmdlet.ThrowTerminatingError((Get-ToolkitErrorRecord @errorParams))
     }
 
     $existing = @{}
