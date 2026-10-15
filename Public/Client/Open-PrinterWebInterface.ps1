@@ -24,17 +24,20 @@ function Open-PrinterWebInterface {
 
     if (-not $printServer) {
 
+        # Only a DNS checkL the print server is reach through the spoolerm not necessarily through WinRM.
+        $serverValid = $false
         do {
             $printServer = Read-Host -Prompt "Enter the name of the server your printer is connected to"
-            Write-Verbose "Verifying connection to $printServer..."
-            $serverValid = $(Test-Connection -TargetName $printServer -Count 1 -Quiet)
-            if ($serverValid -eq $true) {
-                Write-Verbose "$printServer is reachable."
-                break
-            } else {
-                Write-Warning "Invalid server name. Please try again."
+            if ([string]::IsNullOrWhiteSpace($printServer)) {
+                continue
             }
-        } while (-not $serverValid)
+            try {
+                $null = Resolve-ToolkitHost -Name $printServer
+                $serverValid = $true
+            } catch {
+                Write-Warning "$($_.Exception.Message) Please try again."
+            }
+        } until ($serverValid)
 
         # Ask until the answer is clearly yes or no; Enter means yes. Save once, after the loop.
         do {

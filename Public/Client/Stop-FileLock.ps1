@@ -62,11 +62,8 @@ function Stop-FileLock {
     }
 
     if ($ComputerName) {
-        try {
-            $null = Test-WSMan -ComputerName $ComputerName -ErrorAction Stop
-        } catch {
-            throw "Could not reach WinRM on '$ComputerName': $($_.Exception.Message)"
-        }
+        # The name itself is kept for the remote session; this only checks DNS and WinRM before anything runs.
+        $null = Resolve-ToolkitHost -Name $ComputerName -RequireWinRM
     }
 
     $sysinternalsPath = (Get-ToolkitConfig).SysinternalsPath

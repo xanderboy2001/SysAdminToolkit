@@ -1,10 +1,11 @@
 function Restart-ServerAndWait {
     <#
     .SYNOPSIS
-        Reboots a Connection Broker and waits until its RDS services are running again.
+    Reboots a Connection Broker and waits until its RDS services are running again.
 
     .DESCRIPTION
-    1. Checks that the server answers a ping. If not, throws before rebooting anything.
+    1. Checks that the server resolves in DNS and accepts PowerShell remoting (WinRM). If not, throws before
+       rebooting anything.
     2. Reboots the server and waits until PowerShell remoting is available again (Restart-Computer -Wait
        -For PowerShell), for up to TimeoutSecs.
     3. Waits for the RDS broker services with Wait-RDMService.
@@ -43,9 +44,14 @@ function Restart-ServerAndWait {
         [int]$MaxRetries
     )
 
-    Write-Information "Testing connection to $ComputerName..."
-    if (-not (Test-Connection -ComputerName $ComputerName -Count 1 -Quiet)) {
-        throw "$ComputerName is not reachable. It was not rebooted."
+    Write-Information "Checking $ComputerName (DNS and WinRM)..."
+    try {
+        $null = Resolve-ToolkitHost -Name $ComputerName -RequireWinRM
+    } catch {
+        # Restart-Computer -Wait -For -PowerShell needs WinRM, so a server without it must not be rebooted.
+        throw [System.InvalidOperationException]::new(
+            "$ComputerName is not reachable. It was not rebooted. $($_.Exception.Message)", $_.Exception
+        )
     }
 
     if (-not $PSCmdlet.ShouldProcess($ComputerName, 'Restart computer and wait for RDS services')) {

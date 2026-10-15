@@ -75,8 +75,15 @@ function Initialize-ToolkitConfig {
     try {
         $saved = Import-PowerShellDataFile -LiteralPath $Script:ConfigPath -ErrorAction Stop
     } catch {
-        throw "The configuration file '$Script:ConfigPath' is not a valid .psd1 file. " +
-        "Fix it, or delete it to recreate it from defaults. Parser error: $($_.Exception.Message)"
+        $errorParams = @{
+            Message        = "The configuration file '$script:ConfigPath' is not a valid .psd1 file. " +
+            "Fix it, or delete it to recreate it from defaults. Parser error: $($_.Exception.Message)"
+            InnerException = $_.Exception
+            ErrorId        = 'ConfigFileInvalid'
+            Category       = 'InvalidData'
+            TargetObject   = $script:ConfigPath
+        }
+        $PSCmdlet.ThrowTerminatingError((New-ToolkitErrorRecord @errorParams))
     }
 
     $existing = @{}

@@ -50,7 +50,15 @@ function Set-RDSessionHostMode {
                 Select-Object -ExpandProperty CollectionName
         ).toLower()
     } catch {
-        throw "Error when getting list of Remote Desktop Server Collections: $($_.Exception.Message)"
+        $errorParams = @{
+            Message        = 'Could not get the Remote Desktop session collections from ' +
+            "${ConnectionBrokerFQDN}: $($_.Exception.Message)"
+            InnerException = $_.Exception
+            ErrorId        = 'CollectionListFailed'
+            Category       = 'ConnectionError'
+            TargetObject   = $ConnectionBrokerFQDN
+        }
+        $PSCmdlet.ThrowTerminatingError((New-ToolkitErrorRecord @errorParams))
     }
     if ($ServerCollections) {
         Write-Host "Found $($ServerCollections.Count) server collections." -ForegroundColor Green
@@ -87,8 +95,14 @@ function Set-RDSessionHostMode {
             Select-Object -Property $SessionHostProperty, $NewConnectionAllowedProperty |
             Sort-Object { [regex]::Replace($_.SessionHost, '\d+', { $args[0].Value.PadLeft(20) }) }
     } catch {
-        throw "Error when getting list of Remote Desktop Session Hosts in ${SelectedCollection}: " +
-        "$($_.Exception.Message)"
+        $errorParams = @{
+            Message        = "Could not get the session hosts in ${SelectedCollection}: $($_.Exception.Message)"
+            InnerException = $_.Exception
+            ErrorId        = 'SessionHostListFailed'
+            Category       = 'ConnectionError'
+            TargetObject   = $SelectedCollection
+        }
+        $PSCmdlet.ThrowTerminatingError((New-ToolkitErrorRecord @errorParams))
     }
 
     if ($Servers) {
@@ -125,7 +139,15 @@ function Set-RDSessionHostMode {
                 Set-RDSessionHost @SetRDHostParams
                 Write-Host "Disabled new connections on $($server.SessionHost)" -ForegroundColor Green
             } catch {
-                throw "Error when disabling new connections on $($server.SessionHost): $($_.Exception.Message)"
+                $errorParams = @{
+                    Message        = "Could not disable new connections on $($server.SessionHost): " +
+                    $_.Exception.Message
+                    InnerException = $_.Exception
+                    ErrorId        = 'SessionHostChangeFailed'
+                    Category       = 'WriteError'
+                    TargetObject   = $server.SessionHost
+                }
+                $PSCmdlet.ThrowTerminatingError((New-ToolkitErrorRecord @errorParams))
             }
         } else {
             try {
@@ -140,7 +162,15 @@ function Set-RDSessionHostMode {
                 Set-RDSessionHost @SetRDHostParams
                 Write-Host "Enabled new connections on $($server.SessionHost)" -ForegroundColor Green
             } catch {
-                throw "Error while enabling new connections on $($server.SessionHost): $($_.Exception.Message)"
+                $errorParams = @{
+                    Message        = "Could not enable new connections on $($server.SessionHost): " +
+                    $_.Exception.Message
+                    InnerException = $_.Exception
+                    ErrorId        = 'SessionHostChangeFailed'
+                    Category       = 'WriteError'
+                    TargetObject   = $server.SessionHost
+                }
+                $PSCmdlet.ThrowTerminatingError((New-ToolkitErrorRecord @errorParams))
             }
         }
     }
