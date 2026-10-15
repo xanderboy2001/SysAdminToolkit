@@ -8,7 +8,19 @@ may contain breaking changes; they are listed under **Breaking** in each entry.
 
 ## [Unreleased]
 
-## [0.3.0] - 10/15/2026
+### Breaking
+
+- `Get-RDConnectedUser` returns one object per session (`SessionHost`, `CollectionName`, `UserName`,
+  `DomainName`, `FullName`, `SessionState`, `SessionId`) and never prompts. Without `-ConnectionBroker` it uses
+  the `RDBrokerServer` setting; without `-CollectionName` and `-SessionHost` it returns every session. The
+  pick-a-collection-and-host version is now only in the menu (**Server > Remote Desktop > List connected
+  users**) ([#1](https://github.com/xanderboy2001/SysAdminToolkit/issues/1)).
+
+### Added
+
+- `Get-RDConnectedUser -CollectionName` and `-SessionHost`.
+
+## [0.3.0] - 2026-10-15
 
 ### Breaking
 

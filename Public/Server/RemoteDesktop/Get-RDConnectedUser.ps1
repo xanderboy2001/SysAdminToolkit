@@ -1,30 +1,47 @@
 function Get-RDConnectedUser {
     <#
     .SYNOPSIS
-    Shows the users connected to one Remote Desktop session host, chosen from menus.
+    Returns the user sessions on Remote Desktop session hosts.
 
     .DESCRIPTION
-    Resolves the Connection Broker, finds the active broker in the high-availability group, and asks you to choose
-    a session collection and then a session host. Lists the full name and username of every user connected to
-    that host. Users that cannot be found in Active Directory are shown as '(not found in AD)'.
+    Finds the active Connection Broker of the deployment, reads the user sessions of the chosen session
+    collections, and returns one object per session. It never prompts, so it can be used in scripts and pipelines.
 
-    This command is interactive: it writes to the console and returns no objects. Returning session objects is
-    planned (GitHub issue #1).
+    - Without -CollectionName, every collection of type 'Remote Desktop' is read.
+    - Without -SessionHost, sessions on every host are returned. A host can be given as a short name ('rds1') or
+      an FQDN; 'rds1' does not match 'rds10'.
+    - FullName is looked up in Active Directory once per user. It is empty for users not found in AD.
+
+    A collection whose sessions cannot be read writes a non-terminating error and the other collections are still
+    returned.
+
+    For the interactive version that lets you pick a collection and a host from menus, use Start-ToolkitMenu:
+    Server > Remote Desktop > List connected users.
 
     .PARAMETER ConnectionBroker
-    Optional. The hostname or FQDN of any Connection Broker in the deployment. If omitted, you are prompted. The
-    toolkit menu passes the RDBrokerServer configuration value.
+    Optional. The host name or FQDN of any Connection Broker in the deployment. Defaults to the RDBrokerServer
+    configuration value. The active broker of its high-availability group is used.
+
+    .PARAMETER CollectionName
+    Optional. One or more session collection names to read.
+
+    .PARAMETER SessionHost
+    Optional. One or more session hosts to return sessions for.
 
     .EXAMPLE
-    Get-RDConnectedUser -ConnectionBroker 'broker01'
-    # Choose a collection and a host, then see who is connected to it.
+    Get-RDConnectedUser -SessionHost 'rds1' | Select-Object -Property FullName, UserName, SessionState
+    # Who is connected to rds1, using the broker from the toolkit configuration.
 
     .EXAMPLE
-    Get-RDConnectedUser
-    # Prompts for the Connection Broker first.
+    Get-RDConnectedUser -ConnectionBroker 'broker01' | Group-Object -Property SessionHost | Sort-Object Count
+    # Number of sessions on each host in every collection.
+
+    .EXAMPLE
+    Get-RDConnectedUser -CollectionName 'Desktops' | Where-Object SessionState -EQ 'STATE_DISCONNECTED'
+    # Disconnected sessions in the Desktops collection.
 
     .OUTPUTS
-    None. Results are written to the console.
+    PSCustomObject with SessionHost, CollectionName, UserName, DomainName, FullName, SessionState, and SessionId.
 
     .NOTES
     Author: Alexander Christian
@@ -33,61 +50,101 @@ function Get-RDConnectedUser {
     #>
     [CmdletBinding()]
     [Alias('Get-RDConnectedUsers')]
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
-        Justification = 'Interactive wizard; to be split into core command + UI. See issue #1 (F-21).')]
+    [OutputType([pscustomobject])]
     param(
-        [string]$ConnectionBroker
+        [Parameter(Position = 0)]
+        [string]$ConnectionBroker,
+
+        [ValidateNotNullOrWhiteSpace()]
+        [string[]]$CollectionName,
+
+        [ValidateNotNullOrWhiteSpace()]
+        [string[]]$SessionHost
     )
 
     if (-not $ConnectionBroker) {
-        $prompt = "Enter the name of one of the Remote Desktop Connection Broker Servers (e.g. 'broker1')"
-        $ConnectionBroker = Read-Host -Prompt $prompt
+        $ConnectionBroker = (Get-ToolkitConfig).RDBrokerServer
     }
-
-    $BrokerFQDN = Confirm-ConnectionBroker -ConnectionBroker $ConnectionBroker
-
-    $ActiveServer = Get-ActiveBroker -BrokerServers $BrokerFQDN
-
-    $Collections = Get-RDCollectionName -ConnectionBroker $ActiveServer
-    do {
-        $result = Show-Menu -Title "Remote Desktop Server Collections" -Options $Collections
-    } until ($result.Quit -or $result.Back -or $null -ne $result.Index)
-
-    if ($result.Quit) {
-        return
-    }
-    if ($result.Back) {
-        return
-    }
-
-    $SelectedCollection = $Collections[$result.Index]
-    Write-Host "You have selected '$SelectedCollection'" -ForegroundColor Green
-
-    $Hosts = Get-RDHostName -ConnectionBroker $ActiveServer -CollectionName $SelectedCollection
-
-    do {
-        $result = Show-Menu -Title "Remote Desktop Hosts in '$SelectedCollection'" -Options $Hosts
-    } until ($result.Quit -or $result.Back -or $null -ne $result.Index)
-
-    if ($result.Quit) {
-        return
-    }
-    if ($result.Back) {
-        return
-    }
-    $SelectedHost = $Hosts[$result.Index]
-    Write-Host "You have selected '$SelectedHost'" -ForegroundColor Green
-    $Users = Get-RDUserSession -ConnectionBroker $ActiveServer -CollectionName $SelectedCollection |
-        Where-Object { $_.HostServer -eq $SelectedHost -or $_.HostServer -like "${SelectedHost}.*" } |
-        Select-Object -ExpandProperty UserName
-
-    Write-Host "There are currently $($Users.Count) connected to ${SelectedHost}:" -ForegroundColor Magenta
-    foreach ($user in $Users) {
-        try {
-            $FullName = Get-FullNameFromUsername -Username $user
-        } catch {
-            $FullName = '(not found in AD)'
+    if (-not $ConnectionBroker) {
+        $errorParams = @{
+            Message  = 'No Connection Broker given. Use -ConnectionBroker, or set RDBrokerServer in the toolkit ' +
+            'configuration.'
+            ErrorId  = 'ConnectionBrokerMissing'
+            Category = 'InvalidArgument'
         }
-        Write-Host "$FullName ($user)"
+        $PSCmdlet.ThrowTerminatingError((Get-ToolkitErrorRecord @errorParams))
+    }
+
+    $resolvedBroker = Confirm-ConnectionBroker -ConnectionBroker $ConnectionBroker
+    $activeBroker = Get-ActiveBroker -BrokerServers $resolvedBroker
+    Write-Verbose "Using active Connection Broker $activeBroker."
+
+    if (-not $CollectionName) {
+        $CollectionName = @(Get-RDCollectionName -ConnectionBroker $activeBroker)
+    }
+
+    # Reads a property that may be missing on some RemoteDesktop module versions; strict mode would throw.
+    $readProperty = {
+        param($Object, [string]$Name)
+        $property = $Object.PSObject.Properties[$Name]
+        if ($property) { $property.Value } else { $null }
+    }
+
+    $fullNames = @{}
+    foreach ($collection in $CollectionName) {
+        try {
+            $sessionParams = @{
+                ConnectionBroker = $activeBroker
+                CollectionName   = $collection
+                ErrorAction      = 'Stop'
+            }
+            $sessions = @(Get-RDUserSession @sessionParams)
+        } catch {
+            $errorParams = @{
+                Message        = "Could not read the sessions of collection '$collection': $($_.Exception.Message)"
+                InnerException = $_.Exception
+                ErrorId        = 'SessionListFailed'
+                Category       = 'ConnectionError'
+                TargetObject   = $collection
+            }
+            $PSCmdlet.WriteError((Get-ToolkitErrorRecord @errorParams))
+            continue
+        }
+
+        foreach ($session in $sessions) {
+            $hostServer = [string](& $readProperty $session 'HostServer')
+            if ($SessionHost) {
+                $isMatch = $false
+                foreach ($wanted in $SessionHost) {
+                    if ($hostServer -eq $wanted -or $hostServer -like "$wanted.*") {
+                        $isMatch = $true
+                        break
+                    }
+                }
+                if (-not $isMatch) {
+                    continue
+                }
+            }
+
+            $userName = [string](& $readProperty $session 'UserName')
+            if ($userName -and -not $fullNames.ContainsKey($userName)) {
+                try {
+                    $fullNames[$userName] = Get-FullNameFromUsername -UserName $userName
+                } catch {
+                    Write-Verbose "No Active Directory user found for '$userName'."
+                    $fullNames[$userName] = $null
+                }
+            }
+
+            [pscustomobject]@{
+                SessionHost    = $hostServer
+                CollectionName = $collection
+                UserName       = $userName
+                DomainName     = & $readProperty $session 'DomainName'
+                FullName       = if ($userName) { $fullNames[$userName] } else { $null }
+                SessionState   = [string](& $readProperty $session 'SessionState')
+                SessionId      = & $readProperty $session 'UnifiedSessionId'
+            }
+        }
     }
 }

@@ -34,11 +34,17 @@ BeforeAll {
         'Get-RDServer', 'Get-RDConnectionBrokerHighAvailability', 'Set-RDActiveManagementServer',
         'Get-RDSessionCollection', 'Get-RDSessionHost', 'Set-RDSessionHost', 'Get-RDUserSession'
     )
+    # Stubs that tests filter on declare the real parameter names: a Pester mock copies the stub's parameters,
+    # so a -ParameterFilter cannot see parameters that a catch-all stub hides.
+    $namedStubs = @{
+        'Get-RDUserSession' = { [CmdletBinding()] param([string]$ConnectionBroker, [string[]]$CollectionName) }
+    }
     foreach ($commandName in $script:rdCommands) {
         if (-not (Get-Command -Name $commandName -ErrorAction SilentlyContinue)) {
-            $null = New-Item -Path "function:global:$commandName" -Value {
+            $stubBody = $namedStubs[$commandName] ?? {
                 param([Parameter(ValueFromRemainingArguments)]$RemainingArguments)
             }
+            $null = New-Item -Path "function:global:$commandName" -Value $stubBody
         }
     }
 
@@ -1634,5 +1640,163 @@ Describe 'Errors keep the original exception (F-20)' {
         $pings = $files | Where-Object Name -NE 'Invoke-Ping.ps1' |
             Select-String -Pattern '^(?!\s*#).*\bTest-Connection\b'
         @($pings) | Should -BeNullOrEmpty
+    }
+}
+
+Describe 'Get-RDConnectedUser returns objects (F-21, issue #1)' {
+    BeforeEach {
+        InModuleScope SysAdminToolkit {
+            Mock Read-Host { throw 'Read-Host must not be called' }
+            Mock Write-Host { throw 'Write-Host must not be called' }
+            Mock Get-ToolkitConfig { @{ RDBrokerServer = 'broker1' } }
+            Mock Confirm-ConnectionBroker { 'BROKER1.CONTOSO.TEST' }
+            Mock Get-ActiveBroker { 'BROKER2.CONTOSO.TEST' }
+            Mock Get-RDCollectionName { 'Desktops', 'Apps' }
+            Mock Get-FullNameFromUsername { "Full $UserName" }
+            Mock Get-RDUserSession -ParameterFilter { $CollectionName -contains 'Desktops' } {
+                [pscustomobject]@{
+                    HostServer       = 'rds1.contoso.test'
+                    UserName         = 'jdoe'
+                    DomainName       = 'CONTOSO'
+                    SessionState     = 'STATE_ACTIVE'
+                    UnifiedSessionId = 3
+                }
+                [pscustomobject]@{
+                    HostServer       = 'rds10.contoso.test'
+                    UserName         = 'asmith'
+                    DomainName       = 'CONTOSO'
+                    SessionState     = 'STATE_DISCONNECTED'
+                    UnifiedSessionId = 4
+                }
+            }
+            Mock Get-RDUserSession -ParameterFilter { $CollectionName -contains 'Apps' } {
+                [pscustomobject]@{
+                    HostServer       = 'rds1.contoso.test'
+                    UserName         = 'jdoe'
+                    DomainName       = 'CONTOSO'
+                    SessionState     = 'STATE_ACTIVE'
+                    UnifiedSessionId = 7
+                }
+            }
+        }
+    }
+
+    It 'returns one object per session in every collection, from the active broker' {
+        InModuleScope SysAdminToolkit {
+            $result = @(Get-RDConnectedUser)
+
+            $result.Count | Should -Be 3
+            $result[0].SessionHost | Should -Be 'rds1.contoso.test'
+            $result[0].CollectionName | Should -Be 'Desktops'
+            $result[0].FullName | Should -Be 'Full jdoe'
+            $result[1].SessionState | Should -Be 'STATE_DISCONNECTED'
+            $result[2].SessionId | Should -Be 7
+            Should -Invoke Get-RDUserSession -Times 2 -Exactly -ParameterFilter {
+                $ConnectionBroker -eq 'BROKER2.CONTOSO.TEST'
+            }
+        }
+    }
+
+    It 'matches -SessionHost exactly, so rds1 does not match rds10' {
+        InModuleScope SysAdminToolkit {
+            $result = @(Get-RDConnectedUser -CollectionName 'Desktops' -SessionHost 'rds1')
+
+            $result.Count | Should -Be 1
+            $result[0].UserName | Should -Be 'jdoe'
+            Should -Invoke Get-RDCollectionName -Times 0 -Exactly
+        }
+    }
+
+    It 'looks up each user in Active Directory only once' {
+        InModuleScope SysAdminToolkit {
+            $null = Get-RDConnectedUser
+
+            Should -Invoke Get-FullNameFromUsername -Times 1 -Exactly -ParameterFilter { $UserName -eq 'jdoe' }
+        }
+    }
+
+    It 'leaves FullName empty for users not in Active Directory' {
+        InModuleScope SysAdminToolkit {
+            Mock Get-FullNameFromUsername { throw 'not found' }
+
+            $result = @(Get-RDConnectedUser -CollectionName 'Apps')
+
+            $result[0].FullName | Should -BeNullOrEmpty
+        }
+    }
+
+    It 'writes an error for a collection it cannot read and still returns the others' {
+        InModuleScope SysAdminToolkit {
+            Mock Get-RDUserSession -ParameterFilter { $CollectionName -contains 'Apps' } {
+                throw [System.TimeoutException]::new('RPC timed out')
+            }
+
+            $result = @(Get-RDConnectedUser -ErrorVariable sessionErrors -ErrorAction SilentlyContinue)
+
+            $result.Count | Should -Be 2
+            # -ErrorVariable also collects the caught inner error, so look for the toolkit's own error.
+            # -ErrorVariable also collects caught inner errors, some as plain exceptions without
+            # FullyQualifiedErrorId, so keep only error records before filtering.
+            $listError = @($sessionErrors | Where-Object {
+                    $_ -is [System.Management.Automation.ErrorRecord] -and
+                    $_.FullyQualifiedErrorId -like 'SysAdminToolkit.SessionListFailed*'
+                })
+            $listError.Count | Should -Be 1
+            $listError[0].Exception.InnerException | Should -BeOfType [System.TimeoutException]
+        }
+    }
+
+    It 'fails clearly when no broker is given or configured' {
+        InModuleScope SysAdminToolkit {
+            Mock Get-ToolkitConfig { @{ RDBrokerServer = '' } }
+
+            { Get-RDConnectedUser } | Should -Throw '*No Connection Broker given*'
+        }
+    }
+
+    It 'has no PSAvoidUsingWriteHost suppression any more' {
+        $path = Join-Path $script:moduleRoot 'Public/Server/RemoteDesktop/Get-RDConnectedUser.ps1'
+        Select-String -LiteralPath $path -Pattern 'PSAvoidUsingWriteHost' -SimpleMatch | Should -BeNullOrEmpty
+    }
+}
+
+Describe 'Show-RDConnectedUser (menu wrapper)' {
+    BeforeEach {
+        InModuleScope SysAdminToolkit {
+            Mock Get-ToolkitConfig { @{ RDBrokerServer = 'broker1' } }
+            Mock Confirm-ConnectionBroker { 'BROKER1.CONTOSO.TEST' }
+            Mock Get-ActiveBroker { 'BROKER2.CONTOSO.TEST' }
+            Mock Get-RDCollectionName { 'Desktops', 'Apps' }
+            Mock Get-RDHostName { 'rds1', 'rds2' }
+            Mock Show-MenuHeader { }
+            Mock Out-Host { }
+            Mock Get-RDConnectedUser { }
+            $script:menuAnswers = [System.Collections.Generic.Queue[hashtable]]::new()
+            Mock Show-Menu { $script:menuAnswers.Dequeue() }
+        }
+    }
+
+    It 'passes the chosen collection and host to Get-RDConnectedUser' {
+        InModuleScope SysAdminToolkit {
+            $script:menuAnswers.Enqueue(@{ Quit = $false; Back = $false; Index = 1 })
+            $script:menuAnswers.Enqueue(@{ Quit = $false; Back = $false; Index = 0 })
+
+            Show-RDConnectedUser
+
+            Should -Invoke Get-RDConnectedUser -Times 1 -Exactly -ParameterFilter {
+                $ConnectionBroker -eq 'BROKER2.CONTOSO.TEST' -and $CollectionName -eq 'Apps' -and
+                $SessionHost -eq 'rds1'
+            }
+        }
+    }
+
+    It 'returns to the menu without querying when Back is chosen' {
+        InModuleScope SysAdminToolkit {
+            $script:menuAnswers.Enqueue(@{ Quit = $false; Back = $true; Index = $null })
+
+            Show-RDConnectedUser
+
+            Should -Invoke Get-RDConnectedUser -Times 0 -Exactly
+        }
     }
 }
