@@ -1510,10 +1510,10 @@ Describe 'AD account commands use one standard confirmation (F-10)' {
 
     It 'Invoke-ADAccountUnlock -WhatIf changes nothing, and -Force unlocks' {
         InModuleScope SysAdminToolkit {
-            Invoke-ADAccountUnlock -WhatIf
+            Invoke-ADAccountUnlock -Identity 'jdoe' -WhatIf
             Should -Invoke Unlock-ADAccount -Times 0 -Exactly
 
-            Invoke-ADAccountUnlock -Force
+            $null = Invoke-ADAccountUnlock -Identity 'jdoe' -Force
             Should -Invoke Unlock-ADAccount -Times 1 -Exactly
         }
     }
@@ -1734,7 +1734,6 @@ Describe 'Get-RDConnectedUser returns objects (F-21, issue #1)' {
             $result = @(Get-RDConnectedUser -ErrorVariable sessionErrors -ErrorAction SilentlyContinue)
 
             $result.Count | Should -Be 2
-            # -ErrorVariable also collects the caught inner error, so look for the toolkit's own error.
             # -ErrorVariable also collects caught inner errors, some as plain exceptions without
             # FullyQualifiedErrorId, so keep only error records before filtering.
             $listError = @($sessionErrors | Where-Object {
@@ -1797,6 +1796,176 @@ Describe 'Show-RDConnectedUser (menu wrapper)' {
             Show-RDConnectedUser
 
             Should -Invoke Get-RDConnectedUser -Times 0 -Exactly
+        }
+    }
+}
+
+Describe 'Invoke-ADAccountUnlock returns objects (F-21, issue #1)' {
+    BeforeEach {
+        InModuleScope SysAdminToolkit {
+            Mock Read-Host { throw 'Read-Host must not be called' }
+            Mock Write-Host { throw 'Write-Host must not be called' }
+            Mock Get-ValidADUser { throw 'Get-ValidADUser must not be called' }
+            Mock Unlock-ADAccount { }
+            # Accounts returned by Get-ADUser, in call order.
+            $script:adAccounts = [System.Collections.Generic.Queue[object]]::new()
+            Mock Get-ADUser {
+                $next = $script:adAccounts.Dequeue()
+                if ($next -is [System.Exception]) {
+                    throw $next
+                }
+                $next
+            }
+            function script:New-TestAccount {
+                param([string]$Sam, [bool]$Locked, $AdminCount = $null)
+                [pscustomobject]@{
+                    SamAccountName    = $Sam
+                    Name              = "Name $Sam"
+                    DistinguishedName = "CN=$Sam,OU=Users,DC=contoso,DC=test"
+                    LockedOut         = $Locked
+                    adminCount        = $AdminCount
+                }
+            }
+        }
+    }
+
+    It 'requires -Identity' {
+        $identity = (Get-Command -Name Invoke-ADAccountUnlock).Parameters['Identity']
+        $identity.Attributes.Where({ $_ -is [System.Management.Automation.ParameterAttribute] }).Mandatory |
+            Should -Contain $true
+    }
+
+    It 'unlocks a locked account and returns Unlocked' {
+        InModuleScope SysAdminToolkit {
+            $script:adAccounts.Enqueue((New-TestAccount -Sam 'jdoe' -Locked $true))
+
+            $result = Invoke-ADAccountUnlock -Identity 'jdoe' -Force
+
+            $result.Result | Should -Be 'Unlocked'
+            $result.WasLocked | Should -BeTrue
+            $result.Name | Should -Be 'Name jdoe'
+            Should -Invoke Unlock-ADAccount -Times 1 -Exactly
+        }
+    }
+
+    It 'leaves an account that is not locked alone and returns NotLocked' {
+        InModuleScope SysAdminToolkit {
+            $script:adAccounts.Enqueue((New-TestAccount -Sam 'jdoe' -Locked $false))
+
+            $result = Invoke-ADAccountUnlock -Identity 'jdoe' -Force
+
+            $result.Result | Should -Be 'NotLocked'
+            Should -Invoke Unlock-ADAccount -Times 0 -Exactly
+        }
+    }
+
+    It 'reports a missing account as an error and still processes the next identity' {
+        InModuleScope SysAdminToolkit {
+            $script:adAccounts.Enqueue([Microsoft.ActiveDirectory.Management.ADIdentityNotFoundException]::new())
+            $script:adAccounts.Enqueue((New-TestAccount -Sam 'asmith' -Locked $true))
+
+            $result = @(Invoke-ADAccountUnlock -Identity 'ghost', 'asmith' -Force -ErrorVariable unlockErrors `
+                    -ErrorAction SilentlyContinue)
+
+            $result.Count | Should -Be 1
+            $result[0].SamAccountName | Should -Be 'asmith'
+            $notFound = @($unlockErrors | Where-Object {
+                    $_ -is [System.Management.Automation.ErrorRecord] -and
+                    $_.FullyQualifiedErrorId -like 'SysAdminToolkit.UserNotFound*'
+                })
+            $notFound.Count | Should -Be 1
+        }
+    }
+
+    It 'accepts objects with a SamAccountName property from the pipeline' {
+        InModuleScope SysAdminToolkit {
+            $script:adAccounts.Enqueue((New-TestAccount -Sam 'jdoe' -Locked $true))
+            $script:adAccounts.Enqueue((New-TestAccount -Sam 'asmith' -Locked $true))
+
+            $result = @(
+                [pscustomobject]@{ SamAccountName = 'jdoe' }, [pscustomobject]@{ SamAccountName = 'asmith' } |
+                    Invoke-ADAccountUnlock -Force
+            )
+
+            $result.SamAccountName | Should -Be @('jdoe', 'asmith')
+            Should -Invoke Unlock-ADAccount -Times 2 -Exactly
+        }
+    }
+
+    It 'changes nothing and returns nothing with -WhatIf' {
+        InModuleScope SysAdminToolkit {
+            $script:adAccounts.Enqueue((New-TestAccount -Sam 'jdoe' -Locked $true))
+
+            $result = Invoke-ADAccountUnlock -Identity 'jdoe' -WhatIf
+
+            $result | Should -BeNullOrEmpty
+            Should -Invoke Unlock-ADAccount -Times 0 -Exactly
+        }
+    }
+
+    It 'warns before unlocking a protected (adminCount = 1) account' {
+        InModuleScope SysAdminToolkit {
+            $script:adAccounts.Enqueue((New-TestAccount -Sam 'admin.jdoe' -Locked $true -AdminCount 1))
+
+            $null = Invoke-ADAccountUnlock -Identity 'admin.jdoe' -Force -WarningVariable unlockWarnings `
+                -WarningAction SilentlyContinue
+
+            "$unlockWarnings" | Should -BeLike '*protected administrative group*'
+        }
+    }
+
+    It 'returns Failed and keeps the original exception when the unlock fails' {
+        InModuleScope SysAdminToolkit {
+            $script:adAccounts.Enqueue((New-TestAccount -Sam 'jdoe' -Locked $true))
+            Mock Unlock-ADAccount { throw [System.UnauthorizedAccessException]::new('Access is denied') }
+
+            $result = Invoke-ADAccountUnlock -Identity 'jdoe' -Force -ErrorVariable unlockErrors `
+                -ErrorAction SilentlyContinue
+
+            $result.Result | Should -Be 'Failed'
+            $failed = @($unlockErrors | Where-Object {
+                    $_ -is [System.Management.Automation.ErrorRecord] -and
+                    $_.FullyQualifiedErrorId -like 'SysAdminToolkit.UnlockFailed*'
+                })
+            $failed.Count | Should -Be 1
+            $failed[0].Exception.InnerException | Should -BeOfType [System.UnauthorizedAccessException]
+        }
+    }
+
+    It 'has no PSAvoidUsingWriteHost suppression any more' {
+        $path = Join-Path $script:moduleRoot 'Public/Server/ActiveDirectory/Invoke-ADAccountUnlock.ps1'
+        Select-String -LiteralPath $path -Pattern 'PSAvoidUsingWriteHost' -SimpleMatch | Should -BeNullOrEmpty
+    }
+}
+
+Describe 'Show-ADAccountUnlock (menu wrapper)' {
+    BeforeEach {
+        InModuleScope SysAdminToolkit {
+            Mock Show-MenuHeader { }
+            Mock Write-Host { }
+            Mock Get-ValidADUser { [pscustomobject]@{ SamAccountName = 'jdoe' } }
+            Mock Invoke-ADAccountUnlock { [pscustomobject]@{ SamAccountName = 'jdoe'; Result = 'Unlocked' } }
+        }
+    }
+
+    It 'unlocks the chosen account when it is locked' {
+        InModuleScope SysAdminToolkit {
+            Mock Get-ADUser { [pscustomobject]@{ SamAccountName = 'jdoe'; LockedOut = $true } }
+
+            Show-ADAccountUnlock
+
+            Should -Invoke Invoke-ADAccountUnlock -Times 1 -Exactly -ParameterFilter { $Identity -contains 'jdoe' }
+        }
+    }
+
+    It 'warns and does not call Invoke-ADAccountUnlock when the account is not locked' {
+        InModuleScope SysAdminToolkit {
+            Mock Get-ADUser { [pscustomobject]@{ SamAccountName = 'jdoe'; LockedOut = $false } }
+
+            Show-ADAccountUnlock -WarningVariable menuWarnings -WarningAction SilentlyContinue
+
+            "$menuWarnings" | Should -BeLike '*not locked*'
+            Should -Invoke Invoke-ADAccountUnlock -Times 0 -Exactly
         }
     }
 }
