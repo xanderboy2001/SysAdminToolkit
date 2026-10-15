@@ -93,7 +93,7 @@ Every command can also be run on its own. Use `Get-Help <command> -Full` for det
 | `Get-ADDisabledUser` | Lists disabled AD accounts, leaving out chosen OUs | No |
 | `Restart-RDSBroker` | Reboots all Connection Brokers one at a time, moving the active role between them | Yes: asks for confirmation |
 | `Set-RDSessionHostMode` | Switches new connections on or off (toggles) for chosen session hosts | Yes: supports `-WhatIf` |
-| `Get-RDConnectedUser` | Shows who is connected to a session host | No |
+| `Get-RDConnectedUser` | Returns the user sessions on session hosts, with full names from AD | No |
 | `Stop-FileLock` | Finds and stops the processes holding a file open, locally or on another computer | Yes: asks for each process |
 | `Get-BatteryReport` | Reports battery capacity for one or more computers | No |
 | `Open-PrinterWebInterface` | Opens a shared printer's web page | No |
@@ -103,11 +103,15 @@ Every command can also be run on its own. Use `Get-Help <command> -Full` for det
 The interactive commands prompt for anything you do not pass as a parameter. Most of them print their results
 instead of returning objects; changing that is tracked in
 [issue #1](https://github.com/xanderboy2001/SysAdminToolkit/issues/1). `Get-BatteryReport`,
-`Test-ComputerReachability`, `Get-ADDisabledUser`, and `Stop-FileLock` return objects you can pipe and export.
+`Test-ComputerReachability`, `Get-ADDisabledUser`, `Get-RDConnectedUser`, and `Stop-FileLock` return objects you
+can pipe and export.
 
 Examples:
 
 ```powershell
+# Who is connected to rds1, and in what state?
+Get-RDConnectedUser -SessionHost rds1 | Select-Object -Property FullName, UserName, SessionState
+
 # Preview a broker reboot without changing anything.
 Restart-RDSBroker -WhatIf
 

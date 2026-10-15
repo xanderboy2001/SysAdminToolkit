@@ -60,7 +60,7 @@ function Get-ToolkitMenu {
                 }
                 @{
                     Label  = 'List connected users'
-                    Action = { Get-RDConnectedUser -ConnectionBroker (Get-ToolkitConfig).RDBrokerServer }
+                    Action = { Show-RDConnectedUser }
                 }
             )
         }
