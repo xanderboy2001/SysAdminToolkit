@@ -1,176 +1,199 @@
 function Set-RDSessionHostMode {
     <#
     .SYNOPSIS
-    Toggles the connection acceptance on one or more Remote Desktop session hosts.
+    Allows or blocks new connections on Remote Desktop session hosts.
 
     .DESCRIPTION
-    Resolves and verifies connectivity to the specified Connection Broker, finds the active broker of its
-    high-availability group, retrieves all Remote Desktop session collections of type 'Remote Desktop' from it,
-    and prompts the user to select a collection and then one or more session hosts to toggle. All changes are
-    sent to the active broker. Session hosts that currently allow new connections are disabled, and hosts that
-    are disabled are enabled.
+    Sets NewConnectionAllowed to the value you give (Yes or No) on each session host, through the active Connection
+    Broker of the deployment. It never prompts for a broker, collection, or host, so it can be used in scripts.
+    Running it twice with the same value changes nothing the second time. Returns one result object per host.
+
+    - Hosts already in the requested state are left alone and reported with Result 'Unchanged'.
+    - A host that is not found in the searched collections writes a non-terminating error
+      (SysAdminToolkit.SessionHostNotFound) and the other hosts are still processed.
+    - A failed change writes an error (SysAdminToolkit.SessionHostChangeFailed) and returns Result 'Failed'.
+
+    Changes ask for confirmation (ConfirmImpact Medium) when $ConfirmPreference is Medium or lower; use -Confirm
+    to always ask, or -WhatIf to see what would change.
+
+    For the interactive version that lets you pick a collection and hosts from menus, use Start-ToolkitMenu:
+    Server > Remote Desktop > Allow or block new connections.
+
+    .PARAMETER SessionHost
+    One or more session hosts, as short names ('rds1') or FQDNs. 'rds1' does not match 'rds10'. Accepts
+    pipeline input, including objects with a SessionHost property such as the output of Get-RDConnectedUser.
+
+    .PARAMETER NewConnectionAllowed
+    Yes to allow new connections, No to block them. Existing sessions are not affected.
 
     .PARAMETER ConnectionBroker
-    Optional. The hostname or FQDN of a Remote Desktop Connection Broker. If not provided, the user is prompted
-    to enter one.
+    Optional. The host name or FQDN of any Connection Broker in the deployment. Defaults to the RDBrokerServer
+    configuration value. The active broker of its high-availability group is used.
+
+    .PARAMETER CollectionName
+    Optional. The session collections to search for the hosts. Defaults to every Remote Desktop collection.
 
     .EXAMPLE
-    Set-RDSessionHostMode -ConnectionBroker 'broker01' -WhatIf
-    # Connects to broker01 and walks through collection and host selection interactively without making changes.
+    Set-RDSessionHostMode -SessionHost 'rds1', 'rds2' -NewConnectionAllowed No
+    # Blocks new connections on rds1 and rds2 before maintenance.
 
     .EXAMPLE
-    Set-RDSessionHostMode
-    # Prompts for the Connection Broker name, then proceeds interactively.
+    Set-RDSessionHostMode -SessionHost 'rds1' -NewConnectionAllowed Yes -WhatIf
+    # Shows whether rds1 would change, without changing it.
+
+    .OUTPUTS
+    PSCustomObject with SessionHost, CollectionName, PreviousState, NewConnectionAllowed, and Result
+    ('Changed', 'Unchanged', or 'Failed').
 
     .NOTES
     Author: Alexander Christian
+    Requires the RemoteDesktop module and WinRM access to the Connection Broker.
     #>
     [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'Medium')]
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
-        Justification = 'Interactive wizard; to be split into core command + UI. See issue #1 (F-21).')]
+    [OutputType([pscustomobject])]
     param(
-        [string]$ConnectionBroker
+        [Parameter(Mandatory, Position = 0, ValueFromPipeline, ValueFromPipelineByPropertyName)]
+        [ValidateNotNullOrWhiteSpace()]
+        [string[]]$SessionHost,
+
+        [Parameter(Mandatory)]
+        [ValidateSet('Yes', 'No')]
+        [string]$NewConnectionAllowed,
+
+        [string]$ConnectionBroker,
+
+        [ValidateNotNullOrWhiteSpace()]
+        [string[]]$CollectionName
     )
 
-    if (-not $ConnectionBroker) {
-        $ConnectionBroker = Read-Host "Enter the name of one of the connection brokers"
-    }
-
-    # Changes are sent to the active broker, which owns the deployment configuration in a high-availability
-    # group; the broker you name may be the passive one.
-    $resolvedBroker = Confirm-ConnectionBroker -ConnectionBroker $ConnectionBroker
-    $ConnectionBrokerFQDN = Get-ActiveBroker -BrokerServers $resolvedBroker
-    Write-Host "Using active Connection Broker $ConnectionBrokerFQDN." -ForegroundColor Green
-
-    try {
-        Write-Host "Getting list of Remote Desktop Server Collections..." -ForegroundColor Cyan
-        $ServerCollections = (
-            Get-RDSessionCollection -ConnectionBroker $ConnectionBrokerFQDN -ErrorAction Stop |
-                Where-Object { $_.ResourceType -eq 'Remote Desktop' } |
-                Select-Object -ExpandProperty CollectionName
-        ).toLower()
-    } catch {
-        $errorParams = @{
-            Message        = 'Could not get the Remote Desktop session collections from ' +
-            "${ConnectionBrokerFQDN}: $($_.Exception.Message)"
-            InnerException = $_.Exception
-            ErrorId        = 'CollectionListFailed'
-            Category       = 'ConnectionError'
-            TargetObject   = $ConnectionBrokerFQDN
+    begin {
+        if (-not $ConnectionBroker) {
+            $ConnectionBroker = (Get-ToolkitConfig).RDBrokerServer
         }
-        $PSCmdlet.ThrowTerminatingError((Get-ToolkitErrorRecord @errorParams))
-    }
-    if ($ServerCollections) {
-        Write-Host "Found $($ServerCollections.Count) server collections." -ForegroundColor Green
-    } else {
-        throw "Could not find any server collections"
-    }
-
-    $SelectedCollection = Select-RDSessionCollection -Collections $ServerCollections
-
-    try {
-        Write-Host "Getting list of Remote Desktop Session Hosts in $SelectedCollection..." -ForegroundColor Cyan
-        $SessionHostProperty = @{
-            Name       = "SessionHost"
-            Expression = {
-                $_.SessionHost.toLower()
+        if (-not $ConnectionBroker) {
+            $errorParams = @{
+                Message  = 'No Connection Broker given. Use -ConnectionBroker, or set RDBrokerServer in the ' +
+                'toolkit configuration.'
+                ErrorId  = 'ConnectionBrokerMissing'
+                Category = 'InvalidArgument'
             }
+            $PSCmdlet.ThrowTerminatingError((Get-ToolkitErrorRecord @errorParams))
         }
-        $NewConnectionAllowedProperty = @{
-            Name       = "NewConnectionAllowed"
-            Expression = {
-                if ($_.NewConnectionAllowed -eq 'Yes') {
-                    $true
-                } else {
-                    $false
-                }
-            }
-        }
-        $SessionHostParams = @{
-            ConnectionBroker = $ConnectionBrokerFQDN
-            CollectionName   = $SelectedCollection
-            ErrorAction      = 'Stop'
-        }
-        $Servers = Get-RDSessionHost @SessionHostParams |
-            Select-Object -Property $SessionHostProperty, $NewConnectionAllowedProperty |
-            Sort-Object { [regex]::Replace($_.SessionHost, '\d+', { $args[0].Value.PadLeft(20) }) }
-    } catch {
-        $errorParams = @{
-            Message        = "Could not get the session hosts in ${SelectedCollection}: $($_.Exception.Message)"
-            InnerException = $_.Exception
-            ErrorId        = 'SessionHostListFailed'
-            Category       = 'ConnectionError'
-            TargetObject   = $SelectedCollection
-        }
-        $PSCmdlet.ThrowTerminatingError((Get-ToolkitErrorRecord @errorParams))
-    }
 
-    if ($Servers) {
-        $EnabledServers = $Servers | Where-Object { $_.NewConnectionAllowed -eq $true }
-        $DisabledServers = $Servers | Where-Object { $_.NewConnectionAllowed -eq $false }
+        # Changes go to the active broker, which owns the deployment configuration in a high-availability group.
+        $resolvedBroker = Confirm-ConnectionBroker -ConnectionBroker $ConnectionBroker
+        $activeBroker = Get-ActiveBroker -BrokerServers $resolvedBroker
+        Write-Verbose "Using active Connection Broker $activeBroker."
 
-        Write-Host "Found $($EnabledServers.Count) enabled servers." -ForegroundColor DarkGray
-        Write-Host "Found $($DisabledServers.Count) disabled servers." -ForegroundColor DarkGray
-    } else {
-        throw "Could not find any Remote Desktop Session Hosts in $SelectedCollection"
-    }
-
-    $SelectedServers = Select-Server -Servers $Servers
-
-    foreach ($server in $SelectedServers) {
-        $newState = if ($server.NewConnectionAllowed) {
-            'No'
-        } else {
-            'Yes'
-        }
-        if (-not $PSCmdlet.ShouldProcess($server.SessionHost, "Set NewConnectionAllowed to '$newState'")) {
-            continue
-        }
-        if ($server.NewConnectionAllowed) {
+        if (-not $CollectionName) {
             try {
-                $msg = "New connections are enabled on $($server.SessionHost). Disabling new connections..."
-                Write-Host $msg -ForegroundColor Cyan
-                $SetRDHostParams = @{
-                    ConnectionBroker     = $ConnectionBrokerFQDN
-                    SessionHost          = $server.SessionHost
-                    NewConnectionAllowed = 'No'
-                    ErrorAction          = 'Stop'
-                }
-                Set-RDSessionHost @SetRDHostParams
-                Write-Host "Disabled new connections on $($server.SessionHost)" -ForegroundColor Green
+                $CollectionName = @(Get-RDCollectionName -ConnectionBroker $activeBroker)
             } catch {
                 $errorParams = @{
-                    Message        = "Could not disable new connections on $($server.SessionHost): " +
+                    Message        = "Could not get the session collections from ${activeBroker}: " +
                     $_.Exception.Message
                     InnerException = $_.Exception
-                    ErrorId        = 'SessionHostChangeFailed'
-                    Category       = 'WriteError'
-                    TargetObject   = $server.SessionHost
+                    ErrorId        = 'CollectionListFailed'
+                    Category       = 'ConnectionError'
+                    TargetObject   = $activeBroker
                 }
                 $PSCmdlet.ThrowTerminatingError((Get-ToolkitErrorRecord @errorParams))
             }
-        } else {
+        }
+
+        # Read every host and its current state once; hosts are then looked up by name.
+        $knownHosts = [System.Collections.Generic.List[object]]::new()
+        foreach ($collection in $CollectionName) {
             try {
-                $msg = "New Connections are disabled on $($server.SessionHost). Enabling new connections..."
-                Write-Host $msg -ForegroundColor Cyan
-                $SetRDHostParams = @{
-                    ConnectionBroker     = $ConnectionBrokerFQDN
-                    SessionHost          = $server.SessionHost
-                    NewConnectionAllowed = 'Yes'
-                    ErrorAction          = 'Stop'
+                $hostParams = @{
+                    ConnectionBroker = $activeBroker
+                    CollectionName   = $collection
+                    ErrorAction      = 'Stop'
                 }
-                Set-RDSessionHost @SetRDHostParams
-                Write-Host "Enabled new connections on $($server.SessionHost)" -ForegroundColor Green
+                foreach ($rdHost in Get-RDSessionHost @hostParams) {
+                    $state = if ("$($rdHost.NewConnectionAllowed)" -eq 'Yes') { 'Yes' } else { 'No' }
+                    $knownHosts.Add([pscustomobject]@{
+                            SessionHost    = [string]$rdHost.SessionHost
+                            CollectionName = $collection
+                            State          = $state
+                        })
+                }
             } catch {
                 $errorParams = @{
-                    Message        = "Could not enable new connections on $($server.SessionHost): " +
-                    $_.Exception.Message
+                    Message        = "Could not get the session hosts in ${collection}: $($_.Exception.Message)"
                     InnerException = $_.Exception
-                    ErrorId        = 'SessionHostChangeFailed'
-                    Category       = 'WriteError'
-                    TargetObject   = $server.SessionHost
+                    ErrorId        = 'SessionHostListFailed'
+                    Category       = 'ConnectionError'
+                    TargetObject   = $collection
                 }
-                $PSCmdlet.ThrowTerminatingError((Get-ToolkitErrorRecord @errorParams))
+                $PSCmdlet.WriteError((Get-ToolkitErrorRecord @errorParams))
+            }
+        }
+    }
+
+    process {
+        foreach ($wanted in $SessionHost) {
+            $found = @($knownHosts | Where-Object {
+                    $_.SessionHost -eq $wanted -or $_.SessionHost -like "$wanted.*"
+                })
+            if ($found.Count -eq 0) {
+                $errorParams = @{
+                    Message      = "Session host '$wanted' was not found in: $($CollectionName -join ', ')."
+                    ErrorId      = 'SessionHostNotFound'
+                    Category     = 'ObjectNotFound'
+                    TargetObject = $wanted
+                }
+                $PSCmdlet.WriteError((Get-ToolkitErrorRecord @errorParams))
+                continue
+            }
+
+            foreach ($rdHost in $found) {
+                $previousState = $rdHost.State
+                $newResult = {
+                    param([string]$Result)
+                    [pscustomobject]@{
+                        SessionHost          = $rdHost.SessionHost
+                        CollectionName       = $rdHost.CollectionName
+                        PreviousState        = $previousState
+                        NewConnectionAllowed = $NewConnectionAllowed
+                        Result               = $Result
+                    }
+                }
+
+                if ($rdHost.State -eq $NewConnectionAllowed) {
+                    Write-Verbose ("$($rdHost.SessionHost) already has NewConnectionAllowed = " +
+                        "$NewConnectionAllowed.")
+                    & $newResult 'Unchanged'
+                    continue
+                }
+
+                $action = "Set NewConnectionAllowed to '$NewConnectionAllowed'"
+                if (-not $PSCmdlet.ShouldProcess($rdHost.SessionHost, $action)) {
+                    continue
+                }
+
+                try {
+                    $setParams = @{
+                        ConnectionBroker     = $activeBroker
+                        SessionHost          = $rdHost.SessionHost
+                        NewConnectionAllowed = $NewConnectionAllowed
+                        ErrorAction          = 'Stop'
+                    }
+                    Set-RDSessionHost @setParams
+                    $rdHost.State = $NewConnectionAllowed
+                    & $newResult 'Changed'
+                } catch {
+                    $errorParams = @{
+                        Message        = "Could not set NewConnectionAllowed on $($rdHost.SessionHost): " +
+                        $_.Exception.Message
+                        InnerException = $_.Exception
+                        ErrorId        = 'SessionHostChangeFailed'
+                        Category       = 'WriteError'
+                        TargetObject   = $rdHost.SessionHost
+                    }
+                    $PSCmdlet.WriteError((Get-ToolkitErrorRecord @errorParams))
+                    & $newResult 'Failed'
+                }
             }
         }
     }

@@ -38,6 +38,11 @@ BeforeAll {
     # so a -ParameterFilter cannot see parameters that a catch-all stub hides.
     $namedStubs = @{
         'Get-RDUserSession' = { [CmdletBinding()] param([string]$ConnectionBroker, [string[]]$CollectionName) }
+        'Get-RDSessionHost' = { [CmdletBinding()] param([string]$ConnectionBroker, [string[]]$CollectionName) }
+        'Set-RDSessionHost' = {
+            [CmdletBinding()]
+            param([string]$ConnectionBroker, [string[]]$SessionHost, [string]$NewConnectionAllowed)
+        }
     }
     foreach ($commandName in $script:rdCommands) {
         if (-not (Get-Command -Name $commandName -ErrorAction SilentlyContinue)) {
@@ -518,7 +523,7 @@ Describe 'Restart-ServerAndWait' {
 }
 
 Describe 'Set-RDSessionHostMode selection helpers' {
-    It 'Select-Server de-duplicates repeated indices (regression: 1,1 toggled twice)' {
+    It 'Select-Server de-duplicates repeated indices (regression: 1,1 selected twice)' {
         InModuleScope SysAdminToolkit {
             Mock Write-Host { }
             Mock Read-Host { '1,1' }
@@ -527,17 +532,6 @@ Describe 'Set-RDSessionHostMode selection helpers' {
                 [pscustomobject]@{ SessionHost = 'rds2'; NewConnectionAllowed = $false }
             )
             @(Select-Server -Servers $servers).Count | Should -Be 1
-        }
-    }
-
-    It 'Select-RDSessionCollection re-prompts on out-of-range and non-numeric input (regression: off-by-one)' {
-        InModuleScope SysAdminToolkit {
-            Mock Write-Host { }
-            $script:answers = [System.Collections.Generic.Queue[string]]::new([string[]]@('3', 'abc', '2'))
-            Mock Read-Host { $script:answers.Dequeue() }
-
-            Select-RDSessionCollection -Collections @('apps', 'desktops') | Should -Be 'desktops'
-            Should -Invoke Read-Host -Times 3 -Exactly
         }
     }
 }
@@ -1615,18 +1609,18 @@ Describe 'AD account commands use one standard confirmation (F-10)' {
 Describe 'Set-RDSessionHostMode uses the active broker (F-05)' {
     It 'queries collections from the active broker, not the broker that was named' {
         InModuleScope SysAdminToolkit {
-            Mock Write-Host { }
             Mock Confirm-ConnectionBroker { 'B1.CONTOSO.TEST' }
             Mock Get-ActiveBroker { 'B2.CONTOSO.TEST' }
-            Mock Get-RDSessionCollection { throw 'stop here' }
+            Mock Get-RDCollectionName { throw 'stop here' }
 
-            { Set-RDSessionHostMode -ConnectionBroker 'b1' } | Should -Throw '*stop here*'
+            { Set-RDSessionHostMode -ConnectionBroker 'b1' -SessionHost 'rds1' -NewConnectionAllowed No } |
+                Should -Throw '*stop here*'
 
             Should -Invoke Get-ActiveBroker -Times 1 -Exactly -ParameterFilter {
                 $BrokerServers -contains 'B1.CONTOSO.TEST'
             }
-            Should -Invoke Write-Host -Times 1 -Exactly -ParameterFilter {
-                "$Object" -like '*active Connection Broker B2.CONTOSO.TEST*'
+            Should -Invoke Get-RDCollectionName -Times 1 -Exactly -ParameterFilter {
+                $ConnectionBroker -eq 'B2.CONTOSO.TEST'
             }
         }
     }
@@ -2409,6 +2403,179 @@ Describe 'Read-YesNo' {
 
             Read-YesNo -Question 'Continue' | Should -BeTrue
             Should -Invoke Read-Host -Times 3 -Exactly
+        }
+    }
+}
+
+Describe 'Set-RDSessionHostMode sets an explicit state (F-21, issue #1)' {
+    BeforeEach {
+        InModuleScope SysAdminToolkit {
+            Mock Read-Host { throw 'Read-Host must not be called' }
+            Mock Write-Host { throw 'Write-Host must not be called' }
+            Mock Get-ToolkitConfig { @{ RDBrokerServer = 'broker1' } }
+            Mock Confirm-ConnectionBroker { 'BROKER1.CONTOSO.TEST' }
+            Mock Get-ActiveBroker { 'BROKER2.CONTOSO.TEST' }
+            Mock Get-RDCollectionName { 'Desktops' }
+            Mock Get-RDSessionHost {
+                [pscustomobject]@{ SessionHost = 'rds1.contoso.test'; NewConnectionAllowed = 'Yes' }
+                [pscustomobject]@{ SessionHost = 'rds10.contoso.test'; NewConnectionAllowed = 'No' }
+            }
+            Mock Set-RDSessionHost { }
+        }
+    }
+
+    It 'requires -SessionHost and -NewConnectionAllowed Yes or No' {
+        $parameters = (Get-Command -Name Set-RDSessionHostMode).Parameters
+        $isParameterAttribute = { $_ -is [System.Management.Automation.ParameterAttribute] }
+        foreach ($name in 'SessionHost', 'NewConnectionAllowed') {
+            $parameters[$name].Attributes.Where($isParameterAttribute).Mandatory | Should -Contain $true
+        }
+        $validValues = $parameters['NewConnectionAllowed'].Attributes.Where({
+                $_ -is [System.Management.Automation.ValidateSetAttribute]
+            }).ValidValues
+        $validValues | Should -Be @('Yes', 'No')
+    }
+
+    It 'changes a host to the requested state through the active broker' {
+        InModuleScope SysAdminToolkit {
+            $result = Set-RDSessionHostMode -SessionHost 'rds1' -NewConnectionAllowed No -Confirm:$false
+
+            $result.Result | Should -Be 'Changed'
+            $result.PreviousState | Should -Be 'Yes'
+            $result.SessionHost | Should -Be 'rds1.contoso.test'
+            Should -Invoke Set-RDSessionHost -Times 1 -Exactly -ParameterFilter {
+                $ConnectionBroker -eq 'BROKER2.CONTOSO.TEST' -and $SessionHost -contains 'rds1.contoso.test' -and
+                $NewConnectionAllowed -eq 'No'
+            }
+        }
+    }
+
+    It 'leaves a host already in the requested state alone (running twice changes nothing)' {
+        InModuleScope SysAdminToolkit {
+            $result = Set-RDSessionHostMode -SessionHost 'rds1' -NewConnectionAllowed Yes -Confirm:$false
+
+            $result.Result | Should -Be 'Unchanged'
+            Should -Invoke Set-RDSessionHost -Times 0 -Exactly
+        }
+    }
+
+    It 'matches host names exactly, so rds1 does not match rds10' {
+        InModuleScope SysAdminToolkit {
+            $result = @(Set-RDSessionHostMode -SessionHost 'rds1' -NewConnectionAllowed No -Confirm:$false)
+
+            $result.Count | Should -Be 1
+            $result[0].SessionHost | Should -Be 'rds1.contoso.test'
+        }
+    }
+
+    It 'reports an unknown host and still processes the others' {
+        InModuleScope SysAdminToolkit {
+            $result = @(Set-RDSessionHostMode -SessionHost 'ghost', 'rds10' -NewConnectionAllowed Yes `
+                    -Confirm:$false -ErrorVariable hostErrors -ErrorAction SilentlyContinue)
+
+            $result.Count | Should -Be 1
+            $result[0].Result | Should -Be 'Changed'
+            $notFound = @($hostErrors | Where-Object {
+                    $_ -is [System.Management.Automation.ErrorRecord] -and
+                    $_.FullyQualifiedErrorId -like 'SysAdminToolkit.SessionHostNotFound*'
+                })
+            $notFound.Count | Should -Be 1
+        }
+    }
+
+    It 'returns Failed and keeps the original exception when a change fails' {
+        InModuleScope SysAdminToolkit {
+            Mock Set-RDSessionHost { throw [System.UnauthorizedAccessException]::new('Access is denied') }
+
+            $result = Set-RDSessionHostMode -SessionHost 'rds1' -NewConnectionAllowed No -Confirm:$false `
+                -ErrorVariable hostErrors -ErrorAction SilentlyContinue
+
+            $result.Result | Should -Be 'Failed'
+            $failed = @($hostErrors | Where-Object {
+                    $_ -is [System.Management.Automation.ErrorRecord] -and
+                    $_.FullyQualifiedErrorId -like 'SysAdminToolkit.SessionHostChangeFailed*'
+                })
+            $failed[0].Exception.InnerException | Should -BeOfType [System.UnauthorizedAccessException]
+        }
+    }
+
+    It 'changes nothing with -WhatIf' {
+        InModuleScope SysAdminToolkit {
+            $result = Set-RDSessionHostMode -SessionHost 'rds1' -NewConnectionAllowed No -WhatIf
+
+            $result | Should -BeNullOrEmpty
+            Should -Invoke Set-RDSessionHost -Times 0 -Exactly
+        }
+    }
+
+    It 'accepts objects with a SessionHost property from the pipeline' {
+        InModuleScope SysAdminToolkit {
+            $result = @(
+                $first = [pscustomobject]@{ SessionHost = 'rds1.contoso.test' }
+                $second = [pscustomobject]@{ SessionHost = 'rds10' }
+                $first, $second | Set-RDSessionHostMode -NewConnectionAllowed No -Confirm:$false
+            )
+
+            $result.Result | Should -Be @('Changed', 'Unchanged')
+            Should -Invoke Get-RDSessionHost -Times 1 -Exactly
+        }
+    }
+
+    It 'fails clearly when no broker is given or configured' {
+        InModuleScope SysAdminToolkit {
+            Mock Get-ToolkitConfig { @{ RDBrokerServer = '' } }
+
+            { Set-RDSessionHostMode -SessionHost 'rds1' -NewConnectionAllowed No } |
+                Should -Throw '*No Connection Broker given*'
+        }
+    }
+
+    It 'has no PSAvoidUsingWriteHost suppression any more' {
+        $path = Join-Path $script:moduleRoot 'Public/Server/RemoteDesktop/Set-RDSessionHostMode.ps1'
+        Select-String -LiteralPath $path -Pattern 'PSAvoidUsingWriteHost' -SimpleMatch | Should -BeNullOrEmpty
+    }
+}
+
+Describe 'Show-RDSessionHostMode (menu wrapper)' {
+    BeforeEach {
+        InModuleScope SysAdminToolkit {
+            Mock Get-ToolkitConfig { @{ RDBrokerServer = 'broker1' } }
+            Mock Confirm-ConnectionBroker { 'BROKER1.CONTOSO.TEST' }
+            Mock Get-ActiveBroker { 'BROKER2.CONTOSO.TEST' }
+            Mock Get-RDCollectionName { 'Desktops', 'Apps' }
+            Mock Get-RDSessionHost {
+                [pscustomobject]@{ SessionHost = 'RDS2.contoso.test'; NewConnectionAllowed = 'No' }
+                [pscustomobject]@{ SessionHost = 'RDS1.contoso.test'; NewConnectionAllowed = 'Yes' }
+            }
+            Mock Select-Server { $Servers[0] }
+            Mock Read-YesNo { $false }
+            Mock Out-Host { }
+            Mock Set-RDSessionHostMode { }
+            $script:menuAnswers = [System.Collections.Generic.Queue[hashtable]]::new()
+            Mock Show-Menu { $script:menuAnswers.Dequeue() }
+        }
+    }
+
+    It 'passes the chosen collection, hosts, and state to Set-RDSessionHostMode with confirmation' {
+        InModuleScope SysAdminToolkit {
+            $script:menuAnswers.Enqueue(@{ Quit = $false; Back = $false; Index = 1 })
+
+            Show-RDSessionHostMode
+
+            Should -Invoke Set-RDSessionHostMode -Times 1 -Exactly -ParameterFilter {
+                $CollectionName -contains 'Apps' -and $SessionHost -contains 'rds1.contoso.test' -and
+                $NewConnectionAllowed -eq 'No' -and $ConnectionBroker -eq 'BROKER2.CONTOSO.TEST' -and $Confirm
+            }
+        }
+    }
+
+    It 'changes nothing when Back is chosen' {
+        InModuleScope SysAdminToolkit {
+            $script:menuAnswers.Enqueue(@{ Quit = $false; Back = $true; Index = $null })
+
+            Show-RDSessionHostMode
+
+            Should -Invoke Set-RDSessionHostMode -Times 0 -Exactly
         }
     }
 }

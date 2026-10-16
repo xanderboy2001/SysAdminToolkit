@@ -20,11 +20,18 @@ may contain breaking changes; they are listed under **Breaking** in each entry.
   `-ComputerName` it uses the `ADConnectServer` setting and fails if that is empty; the prompt for the server
   is now only in the menu (**Server > Active Directory > Start AD Sync**). A failed remote call is now a
   terminating error ([#1](https://github.com/xanderboy2001/SysAdminToolkit/issues/1)).
+- `Set-RDSessionHostMode` no longer toggles hosts or prompts. It requires `-SessionHost` and
+  `-NewConnectionAllowed Yes|No`, leaves hosts already in that state alone, and returns one object per host
+  (`SessionHost`, `CollectionName`, `PreviousState`, `NewConnectionAllowed`, `Result`). A host that cannot be
+  changed is reported and the others are still processed. The menu item is renamed **Allow or block new
+  connections** and asks which state to set ([#1](https://github.com/xanderboy2001/SysAdminToolkit/issues/1)).
 
 ### Added
 
 - `Invoke-ADPasswordReset -Unlock` and `-ChangePasswordAtLogon`.
 - `Invoke-ADSync -ComputerName`.
+- `Set-RDSessionHostMode -ConnectionBroker` defaults to the `RDBrokerServer` setting, and `-SessionHost` accepts
+  pipeline input.
 
 ## [0.4.0] - 2026-10-15
 

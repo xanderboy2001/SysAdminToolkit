@@ -55,8 +55,8 @@ function Get-ToolkitMenu {
                     Action = { Restart-RDSBroker -BrokerServer (Get-ToolkitConfig).RDBrokerServer }
                 }
                 @{
-                    Label  = 'Toggle New Connections on Server'
-                    Action = { Set-RDSessionHostMode -ConnectionBroker (Get-ToolkitConfig).RDBrokerServer }
+                    Label  = 'Allow or block new connections'
+                    Action = { Show-RDSessionHostMode }
                 }
                 @{
                     Label  = 'List connected users'
