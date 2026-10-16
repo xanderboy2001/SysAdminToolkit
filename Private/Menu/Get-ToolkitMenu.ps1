@@ -43,7 +43,7 @@ function Get-ToolkitMenu {
                 @{ Label = 'Reset Password'; Action = { Show-ADPasswordReset } }
                 @{ Label = 'Unlock Account'; Action = { Show-ADAccountUnlock } }
                 @{ Label = 'Disable User'; Action = { Show-ADAccountDisable } }
-                @{ Label = 'Start AD Sync'; Action = { Invoke-ADSync } }
+                @{ Label = 'Start AD Sync'; Action = { Show-ADSync } }
                 @{ Label = 'Get Disabled Users'; Action = { Get-ADDisabledUser } }
             )
         }
