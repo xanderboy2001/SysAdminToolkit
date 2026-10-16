@@ -148,12 +148,13 @@ function Set-RDSessionHostMode {
             }
 
             foreach ($rdHost in $found) {
+                $previousState = $rdHost.State
                 $newResult = {
                     param([string]$Result)
                     [pscustomobject]@{
                         SessionHost          = $rdHost.SessionHost
                         CollectionName       = $rdHost.CollectionName
-                        PreviousState        = $rdHost.State
+                        PreviousState        = $previousState
                         NewConnectionAllowed = $NewConnectionAllowed
                         Result               = $Result
                     }
