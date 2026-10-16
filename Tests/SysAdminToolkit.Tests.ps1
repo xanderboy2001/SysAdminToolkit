@@ -1483,23 +1483,26 @@ Describe 'AD account commands use one standard confirmation (F-10)' {
             Mock Get-ADUser { [pscustomobject]@{ SamAccountName = 'jdoe'; LockedOut = $true; Enabled = $true } }
             Mock Read-Password { [System.Security.SecureString]::new() }
             Mock Set-ADAccountPassword { }
+            Mock Set-ADUser { }
             Mock Unlock-ADAccount { }
             Mock Disable-ADAccount { }
+            $script:testPassword = [System.Security.SecureString]::new()
+            'Pa55word!'.ToCharArray() | ForEach-Object { $script:testPassword.AppendChar($_) }
         }
     }
 
-    It 'Invoke-ADPasswordReset -WhatIf asks for no password and changes nothing' {
+    It 'Invoke-ADPasswordReset -WhatIf changes nothing' {
         InModuleScope SysAdminToolkit {
-            Invoke-ADPasswordReset -WhatIf
+            Invoke-ADPasswordReset -Identity 'jdoe' -NewPassword $script:testPassword -WhatIf
 
-            Should -Invoke Read-Password -Times 0 -Exactly
             Should -Invoke Set-ADAccountPassword -Times 0 -Exactly
         }
     }
 
     It 'Invoke-ADPasswordReset -Force resets without a second confirmation' {
         InModuleScope SysAdminToolkit {
-            Invoke-ADPasswordReset -Force -ErrorVariable resetErrors
+            $null = Invoke-ADPasswordReset -Identity 'jdoe' -NewPassword $script:testPassword -Force `
+                -ErrorVariable resetErrors -WarningAction SilentlyContinue
 
             $resetErrors | Should -BeNullOrEmpty
             # No parameter filter: with the real ActiveDirectory module, -Identity is bound as an ADAccount
@@ -2140,6 +2143,190 @@ Describe 'Show-ADAccountDisable (menu wrapper)' {
             Show-ADAccountDisable -WarningVariable menuWarnings -WarningAction SilentlyContinue
 
             "$menuWarnings" | Should -BeLike '*already disabled*'
+        }
+    }
+}
+
+Describe 'Invoke-ADPasswordReset returns objects (F-21, issue #1)' {
+    BeforeEach {
+        InModuleScope SysAdminToolkit {
+            Mock Read-Host { throw 'Read-Host must not be called' }
+            Mock Write-Host { throw 'Write-Host must not be called' }
+            Mock Get-ValidADUser { throw 'Get-ValidADUser must not be called' }
+            Mock Read-Password { throw 'Read-Password must not be called' }
+            Mock Set-ADAccountPassword { }
+            Mock Set-ADUser { }
+            Mock Unlock-ADAccount { }
+            $script:account = [pscustomobject]@{
+                SamAccountName = 'jdoe'
+                Name           = 'John Doe'
+                LockedOut      = $false
+                adminCount     = $null
+            }
+            Mock Get-ADUser { $script:account }
+            $script:testPassword = [System.Security.SecureString]::new()
+            'Pa55word!'.ToCharArray() | ForEach-Object { $script:testPassword.AppendChar($_) }
+        }
+    }
+
+    It 'requires -Identity and a SecureString -NewPassword' {
+        $parameters = (Get-Command -Name Invoke-ADPasswordReset).Parameters
+        $isParameterAttribute = { $_ -is [System.Management.Automation.ParameterAttribute] }
+        foreach ($name in 'Identity', 'NewPassword') {
+            $parameters[$name].Attributes.Where($isParameterAttribute).Mandatory | Should -Contain $true
+        }
+        $parameters['NewPassword'].ParameterType | Should -Be ([securestring])
+    }
+
+    It 'resets the password only, by default' {
+        InModuleScope SysAdminToolkit {
+            $result = Invoke-ADPasswordReset -Identity 'jdoe' -NewPassword $script:testPassword -Force
+
+            $result.PasswordReset | Should -BeTrue
+            $result.ChangePasswordAtLogon | Should -BeFalse
+            Should -Invoke Set-ADAccountPassword -Times 1 -Exactly
+            Should -Invoke Set-ADUser -Times 0 -Exactly
+            Should -Invoke Unlock-ADAccount -Times 0 -Exactly
+        }
+    }
+
+    It 'requires a password change at next sign-in with -ChangePasswordAtLogon' {
+        InModuleScope SysAdminToolkit {
+            $result = Invoke-ADPasswordReset -Identity 'jdoe' -NewPassword $script:testPassword `
+                -ChangePasswordAtLogon -Force
+
+            $result.ChangePasswordAtLogon | Should -BeTrue
+            Should -Invoke Set-ADUser -Times 1 -Exactly -ParameterFilter { $ChangePasswordAtLogon -eq $true }
+        }
+    }
+
+    It 'unlocks a locked account only with -Unlock' {
+        InModuleScope SysAdminToolkit {
+            $script:account.LockedOut = $true
+
+            $withUnlock = Invoke-ADPasswordReset -Identity 'jdoe' -NewPassword $script:testPassword -Unlock -Force
+            $withUnlock.Unlocked | Should -BeTrue
+            Should -Invoke Unlock-ADAccount -Times 1 -Exactly
+
+            $without = Invoke-ADPasswordReset -Identity 'jdoe' -NewPassword $script:testPassword -Force `
+                -WarningVariable resetWarnings -WarningAction SilentlyContinue
+            $without.WasLocked | Should -BeTrue
+            $without.Unlocked | Should -BeFalse
+            "$resetWarnings" | Should -BeLike '*is locked and was not unlocked*'
+            Should -Invoke Unlock-ADAccount -Times 1 -Exactly
+        }
+    }
+
+    It 'does not try to unlock an account that is not locked' {
+        InModuleScope SysAdminToolkit {
+            $result = Invoke-ADPasswordReset -Identity 'jdoe' -NewPassword $script:testPassword -Unlock -Force
+
+            $result.Unlocked | Should -BeFalse
+            Should -Invoke Unlock-ADAccount -Times 0 -Exactly
+        }
+    }
+
+    It 'rejects an empty password before changing anything' {
+        InModuleScope SysAdminToolkit {
+            { Invoke-ADPasswordReset -Identity 'jdoe' -NewPassword ([securestring]::new()) -Force } |
+                Should -Throw '*cannot be empty*'
+
+            Should -Invoke Set-ADAccountPassword -Times 0 -Exactly
+        }
+    }
+
+    It 'throws PasswordResetFailed with the original exception and changes nothing else' {
+        InModuleScope SysAdminToolkit {
+            Mock Set-ADAccountPassword { throw [System.UnauthorizedAccessException]::new('Access is denied') }
+
+            $failure = { Invoke-ADPasswordReset -Identity 'jdoe' -NewPassword $script:testPassword `
+                    -ChangePasswordAtLogon -Unlock -Force } | Should -Throw -PassThru
+
+            $failure.FullyQualifiedErrorId | Should -BeLike 'SysAdminToolkit.PasswordResetFailed*'
+            $failure.Exception.InnerException | Should -BeOfType [System.UnauthorizedAccessException]
+            Should -Invoke Set-ADUser -Times 0 -Exactly
+        }
+    }
+
+    It 'throws UserNotFound for an unknown account' {
+        InModuleScope SysAdminToolkit {
+            Mock Get-ADUser { throw [Microsoft.ActiveDirectory.Management.ADIdentityNotFoundException]::new() }
+
+            $failure = { Invoke-ADPasswordReset -Identity 'ghost' -NewPassword $script:testPassword -Force } |
+                Should -Throw -PassThru
+
+            $failure.FullyQualifiedErrorId | Should -BeLike 'SysAdminToolkit.UserNotFound*'
+        }
+    }
+
+    It 'has no PSAvoidUsingWriteHost suppression any more' {
+        $path = Join-Path $script:moduleRoot 'Public/Server/ActiveDirectory/Invoke-ADPasswordReset.ps1'
+        Select-String -LiteralPath $path -Pattern 'PSAvoidUsingWriteHost' -SimpleMatch | Should -BeNullOrEmpty
+    }
+}
+
+Describe 'Show-ADPasswordReset (menu wrapper)' {
+    BeforeEach {
+        InModuleScope SysAdminToolkit {
+            Mock Show-MenuHeader { }
+            Mock Write-Host { }
+            Mock Get-ValidADUser { [pscustomobject]@{ SamAccountName = 'jdoe' } }
+            Mock Read-Password { [System.Security.SecureString]::new() }
+            Mock Invoke-ADPasswordReset {
+                [pscustomobject]@{
+                    SamAccountName        = 'jdoe'
+                    PasswordReset         = $true
+                    ChangePasswordAtLogon = [bool]$ChangePasswordAtLogon
+                    WasLocked             = $true
+                    Unlocked              = [bool]$Unlock
+                }
+            }
+            $script:yesNoAnswers = [System.Collections.Generic.Queue[bool]]::new()
+            Mock Read-YesNo { $script:yesNoAnswers.Dequeue() }
+        }
+    }
+
+    It 'asks about unlocking a locked account and passes both answers on' {
+        InModuleScope SysAdminToolkit {
+            Mock Get-ADUser { [pscustomobject]@{ SamAccountName = 'jdoe'; LockedOut = $true } }
+            $script:yesNoAnswers.Enqueue($true)    # unlock
+            $script:yesNoAnswers.Enqueue($false)   # change at next sign-in
+
+            Show-ADPasswordReset
+
+            Should -Invoke Read-YesNo -Times 2 -Exactly
+            Should -Invoke Invoke-ADPasswordReset -Times 1 -Exactly -ParameterFilter {
+                $Unlock -eq $true -and $ChangePasswordAtLogon -eq $false
+            }
+        }
+    }
+
+    It 'does not ask about unlocking when the account is not locked' {
+        InModuleScope SysAdminToolkit {
+            Mock Get-ADUser { [pscustomobject]@{ SamAccountName = 'jdoe'; LockedOut = $false } }
+            $script:yesNoAnswers.Enqueue($true)    # change at next sign-in
+
+            Show-ADPasswordReset
+
+            Should -Invoke Read-YesNo -Times 1 -Exactly -ParameterFilter {
+                $Question -like '*change the password*'
+            }
+            Should -Invoke Invoke-ADPasswordReset -Times 1 -Exactly -ParameterFilter {
+                $Unlock -eq $false -and $ChangePasswordAtLogon -eq $true
+            }
+        }
+    }
+}
+
+Describe 'Read-YesNo' {
+    It 'asks again until the answer is yes or no, and has no default' {
+        InModuleScope SysAdminToolkit {
+            Mock Write-Host { }
+            $script:replies = [System.Collections.Generic.Queue[string]]::new([string[]]@('', 'maybe', 'Yes'))
+            Mock Read-Host { $script:replies.Dequeue() }
+
+            Read-YesNo -Question 'Continue' | Should -BeTrue
+            Should -Invoke Read-Host -Times 3 -Exactly
         }
     }
 }

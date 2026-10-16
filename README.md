@@ -86,7 +86,7 @@ Every command can also be run on its own. Use `Get-Help <command> -Full` for det
 | Command | What it does | Changes anything? |
 |---|---|---|
 | `Start-ToolkitMenu` | Opens the toolkit menu | No |
-| `Invoke-ADPasswordReset` | Resets an AD user's password and unlocks the account | Yes: asks for confirmation |
+| `Invoke-ADPasswordReset` | Resets an AD user's password; optionally unlocks and forces a change at sign-in | Yes: asks for confirmation |
 | `Invoke-ADAccountUnlock` | Unlocks locked AD accounts; accepts pipeline input | Yes: asks for confirmation |
 | `Invoke-ADAccountDisable` | Disables AD accounts; accepts pipeline input | Yes: asks for confirmation |
 | `Invoke-ADSync` | Runs an Entra Connect delta sync and waits for it to finish | Yes: supports `-WhatIf` |
@@ -104,7 +104,7 @@ The interactive commands prompt for anything you do not pass as a parameter. Mos
 instead of returning objects; changing that is tracked in
 [issue #1](https://github.com/xanderboy2001/SysAdminToolkit/issues/1). `Get-BatteryReport`,
 `Test-ComputerReachability`, `Get-ADDisabledUser`, `Get-RDConnectedUser`, `Invoke-ADAccountUnlock`,
-`Invoke-ADAccountDisable`, and `Stop-FileLock` return objects you can pipe and export.
+`Invoke-ADAccountDisable`, `Invoke-ADPasswordReset`, and `Stop-FileLock` return objects you can pipe and export.
 
 Examples:
 

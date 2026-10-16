@@ -40,7 +40,7 @@ function Get-ToolkitMenu {
         ActiveDirectory = @{
             Title = 'Active Directory Menu'
             Items = @(
-                @{ Label = 'Reset Password'; Action = { Invoke-ADPasswordReset } }
+                @{ Label = 'Reset Password'; Action = { Show-ADPasswordReset } }
                 @{ Label = 'Unlock Account'; Action = { Show-ADAccountUnlock } }
                 @{ Label = 'Disable User'; Action = { Show-ADAccountDisable } }
                 @{ Label = 'Start AD Sync'; Action = { Invoke-ADSync } }

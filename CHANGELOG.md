@@ -8,6 +8,19 @@ may contain breaking changes; they are listed under **Breaking** in each entry.
 
 ## [Unreleased]
 
+### Breaking
+
+- `Invoke-ADPasswordReset` requires `-Identity` and `-NewPassword` (a SecureString) and never prompts. It no
+  longer unlocks the account automatically: use `-Unlock`. It returns one object (`SamAccountName`, `Name`,
+  `PasswordReset`, `ChangePasswordAtLogon`, `WasLocked`, `Unlocked`). The interactive version is now only in
+  the menu (**Server > Active Directory > Reset Password**), which asks whether to unlock a locked account and
+  whether to require a password change at the next sign-in
+  ([#1](https://github.com/xanderboy2001/SysAdminToolkit/issues/1)).
+
+### Added
+
+- `Invoke-ADPasswordReset -Unlock` and `-ChangePasswordAtLogon`.
+
 ## [0.4.0] - 2026-10-15
 
 ### Breaking
