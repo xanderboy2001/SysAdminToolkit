@@ -16,10 +16,15 @@ may contain breaking changes; they are listed under **Breaking** in each entry.
   the menu (**Server > Active Directory > Reset Password**), which asks whether to unlock a locked account and
   whether to require a password change at the next sign-in
   ([#1](https://github.com/xanderboy2001/SysAdminToolkit/issues/1)).
+- `Invoke-ADSync` never prompts and returns one object (`ComputerName`, `Status`, `ElapsedSeconds`). Without
+  `-ComputerName` it uses the `ADConnectServer` setting and fails if that is empty; the prompt for the server
+  is now only in the menu (**Server > Active Directory > Start AD Sync**). A failed remote call is now a
+  terminating error ([#1](https://github.com/xanderboy2001/SysAdminToolkit/issues/1)).
 
 ### Added
 
 - `Invoke-ADPasswordReset -Unlock` and `-ChangePasswordAtLogon`.
+- `Invoke-ADSync -ComputerName`.
 
 ## [0.4.0] - 2026-10-15
 

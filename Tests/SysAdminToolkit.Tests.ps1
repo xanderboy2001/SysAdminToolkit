@@ -1117,8 +1117,8 @@ Describe 'Invoke-ADSyncDeltaCycle (runs on the AD Connect server)' {
 
 Describe 'Invoke-ADSync' {
     BeforeEach {
-        Mock -ModuleName SysAdminToolkit Show-MenuHeader { }
-        Mock -ModuleName SysAdminToolkit Write-Host { }
+        Mock -ModuleName SysAdminToolkit Show-MenuHeader { throw 'Show-MenuHeader must not be called' }
+        Mock -ModuleName SysAdminToolkit Write-Host { throw 'Write-Host must not be called' }
         Mock -ModuleName SysAdminToolkit Read-Host { throw 'Read-Host must not be called' }
         Mock -ModuleName SysAdminToolkit Resolve-ToolkitHost { 'ADCONNECT.CONTOSO.TEST' }
         Mock -ModuleName SysAdminToolkit Get-ToolkitConfig {
@@ -1126,13 +1126,16 @@ Describe 'Invoke-ADSync' {
         }
     }
 
-    It 'passes the configured timeout to the remote cycle' {
+    It 'passes the configured timeout to the remote cycle and returns the result' {
         Mock -ModuleName SysAdminToolkit Invoke-Command {
             [pscustomobject]@{ Status = 'Completed'; ElapsedSeconds = 5 }
         }
 
-        Invoke-ADSync
+        $result = Invoke-ADSync
 
+        $result.ComputerName | Should -Be 'ADCONNECT.CONTOSO.TEST'
+        $result.Status | Should -Be 'Completed'
+        $result.ElapsedSeconds | Should -Be 5
         Should -Invoke -ModuleName SysAdminToolkit Invoke-Command -Times 1 -Exactly -ParameterFilter {
             $ArgumentList[0] -eq 900
         }
@@ -1143,40 +1146,119 @@ Describe 'Invoke-ADSync' {
             [pscustomobject]@{ Status = 'Completed'; ElapsedSeconds = 5 }
         }
 
-        Invoke-ADSync -TimeoutSeconds 60
+        $null = Invoke-ADSync -TimeoutSeconds 60
 
         Should -Invoke -ModuleName SysAdminToolkit Invoke-Command -Times 1 -Exactly -ParameterFilter {
             $ArgumentList[0] -eq 60
         }
     }
 
-    It 'writes an error when the cycle times out' {
+    It 'uses -ComputerName instead of the configured server' {
+        Mock -ModuleName SysAdminToolkit Invoke-Command {
+            [pscustomobject]@{ Status = 'Completed'; ElapsedSeconds = 5 }
+        }
+
+        $null = Invoke-ADSync -ComputerName 'other-server'
+
+        Should -Invoke -ModuleName SysAdminToolkit Resolve-ToolkitHost -Times 1 -Exactly -ParameterFilter {
+            $Name -eq 'other-server'
+        }
+    }
+
+    It 'fails clearly when no server is given or configured' {
+        Mock -ModuleName SysAdminToolkit Get-ToolkitConfig { @{ ADConnectServer = ''; ADSyncTimeoutSecs = 900 } }
+
+        { Invoke-ADSync } | Should -Throw '*No AD Connect server given*'
+    }
+
+    It 'returns TimedOut and writes a SyncTimedOut error' {
         Mock -ModuleName SysAdminToolkit Invoke-Command {
             [pscustomobject]@{ Status = 'TimedOut'; ElapsedSeconds = 900 }
         }
 
-        Invoke-ADSync -ErrorVariable syncErrors -ErrorAction SilentlyContinue
+        $result = Invoke-ADSync -ErrorVariable syncErrors -ErrorAction SilentlyContinue
 
-        "$syncErrors" | Should -BeLike '*still running after 900s*'
+        $result.Status | Should -Be 'TimedOut'
+        $timedOut = @($syncErrors | Where-Object {
+                $_ -is [System.Management.Automation.ErrorRecord] -and
+                $_.FullyQualifiedErrorId -like 'SysAdminToolkit.SyncTimedOut*'
+            })
+        $timedOut.Count | Should -Be 1
+        "$($timedOut[0])" | Should -BeLike '*still running after 900s*'
     }
 
-    It 'warns instead of failing when a cycle is already running' {
+    It 'returns AlreadyRunning with a warning and no error' {
         Mock -ModuleName SysAdminToolkit Invoke-Command {
             [pscustomobject]@{ Status = 'AlreadyRunning'; ElapsedSeconds = 0 }
         }
 
-        Invoke-ADSync -WarningVariable syncWarnings -WarningAction SilentlyContinue -ErrorVariable syncErrors
+        $result = Invoke-ADSync -WarningVariable syncWarnings -WarningAction SilentlyContinue `
+            -ErrorVariable syncErrors
 
+        $result.Status | Should -Be 'AlreadyRunning'
         "$syncWarnings" | Should -BeLike '*already running*'
         $syncErrors | Should -BeNullOrEmpty
     }
 
-    It 'starts nothing with -WhatIf' {
+    It 'throws SyncFailed with the original exception when the remote call fails' {
+        Mock -ModuleName SysAdminToolkit Invoke-Command { throw [System.TimeoutException]::new('WinRM timed out') }
+
+        $failure = { Invoke-ADSync } | Should -Throw -PassThru
+
+        $failure.FullyQualifiedErrorId | Should -BeLike 'SysAdminToolkit.SyncFailed*'
+        $failure.Exception.InnerException | Should -BeOfType [System.TimeoutException]
+    }
+
+    It 'starts nothing and returns nothing with -WhatIf' {
         Mock -ModuleName SysAdminToolkit Invoke-Command { }
 
-        Invoke-ADSync -WhatIf
+        $result = Invoke-ADSync -WhatIf
 
+        $result | Should -BeNullOrEmpty
         Should -Invoke -ModuleName SysAdminToolkit Invoke-Command -Times 0 -Exactly
+    }
+
+    It 'has no PSAvoidUsingWriteHost suppression any more' {
+        $path = Join-Path $script:moduleRoot 'Public/Server/ActiveDirectory/Invoke-ADSync.ps1'
+        Select-String -LiteralPath $path -Pattern 'PSAvoidUsingWriteHost' -SimpleMatch | Should -BeNullOrEmpty
+    }
+}
+
+Describe 'Show-ADSync (menu wrapper)' {
+    BeforeEach {
+        InModuleScope SysAdminToolkit {
+            Mock Show-MenuHeader { }
+            Mock Write-Host { }
+            Mock Invoke-ADSync {
+                [pscustomobject]@{
+                    ComputerName   = 'ADCONNECT.CONTOSO.TEST'
+                    Status         = 'Completed'
+                    ElapsedSeconds = 5
+                }
+            }
+        }
+    }
+
+    It 'uses the configured server without prompting' {
+        InModuleScope SysAdminToolkit {
+            Mock Get-ToolkitConfig { @{ ADConnectServer = 'adconnect' } }
+            Mock Read-Host { throw 'Read-Host must not be called' }
+
+            Show-ADSync
+
+            Should -Invoke Invoke-ADSync -Times 1 -Exactly -ParameterFilter { $ComputerName -eq 'adconnect' }
+        }
+    }
+
+    It 'asks for the server when none is configured' {
+        InModuleScope SysAdminToolkit {
+            Mock Get-ToolkitConfig { @{ ADConnectServer = '' } }
+            Mock Read-Host { 'typed-server' }
+
+            Show-ADSync
+
+            Should -Invoke Invoke-ADSync -Times 1 -Exactly -ParameterFilter { $ComputerName -eq 'typed-server' }
+        }
     }
 }
 

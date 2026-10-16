@@ -89,7 +89,7 @@ Every command can also be run on its own. Use `Get-Help <command> -Full` for det
 | `Invoke-ADPasswordReset` | Resets an AD user's password; optionally unlocks and forces a change at sign-in | Yes: asks for confirmation |
 | `Invoke-ADAccountUnlock` | Unlocks locked AD accounts; accepts pipeline input | Yes: asks for confirmation |
 | `Invoke-ADAccountDisable` | Disables AD accounts; accepts pipeline input | Yes: asks for confirmation |
-| `Invoke-ADSync` | Runs an Entra Connect delta sync and waits for it to finish | Yes: supports `-WhatIf` |
+| `Invoke-ADSync` | Runs an Entra Connect delta sync, waits for it, and returns the result | Yes: supports `-WhatIf` |
 | `Get-ADDisabledUser` | Lists disabled AD accounts, leaving out chosen OUs | No |
 | `Restart-RDSBroker` | Reboots all Connection Brokers one at a time, moving the active role between them | Yes: asks for confirmation |
 | `Set-RDSessionHostMode` | Switches new connections on or off (toggles) for chosen session hosts | Yes: supports `-WhatIf` |
@@ -104,7 +104,8 @@ The interactive commands prompt for anything you do not pass as a parameter. Mos
 instead of returning objects; changing that is tracked in
 [issue #1](https://github.com/xanderboy2001/SysAdminToolkit/issues/1). `Get-BatteryReport`,
 `Test-ComputerReachability`, `Get-ADDisabledUser`, `Get-RDConnectedUser`, `Invoke-ADAccountUnlock`,
-`Invoke-ADAccountDisable`, `Invoke-ADPasswordReset`, and `Stop-FileLock` return objects you can pipe and export.
+`Invoke-ADAccountDisable`, `Invoke-ADPasswordReset`, `Invoke-ADSync`, and `Stop-FileLock` return objects you can
+pipe and export.
 
 Examples:
 
@@ -134,7 +135,7 @@ every administrator on the server. View them with **Config** > **View Config**. 
 
 | Setting | Default | Used by |
 |---|---|---|
-| `ADConnectServer` | *(empty: you are prompted)* | `Invoke-ADSync`: the Entra Connect server |
+| `ADConnectServer` | *(empty)* | `Invoke-ADSync`: the Entra Connect server (the menu prompts if empty) |
 | `ADSyncTimeoutSecs` | `1800` | `Invoke-ADSync`: how long to wait for a sync cycle |
 | `RDBrokerServer` | *(empty: you are prompted)* | Remote Desktop commands: any Connection Broker |
 | `RDMaxRetries` | `15` | `Restart-RDSBroker`: service checks per broker, 30 seconds apart |
