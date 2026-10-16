@@ -25,6 +25,11 @@ may contain breaking changes; they are listed under **Breaking** in each entry.
   (`SessionHost`, `CollectionName`, `PreviousState`, `NewConnectionAllowed`, `Result`). A host that cannot be
   changed is reported and the others are still processed. The menu item is renamed **Allow or block new
   connections** and asks which state to set ([#1](https://github.com/xanderboy2001/SysAdminToolkit/issues/1)).
+- `Restart-RDSBroker` no longer prompts for the broker: without `-BrokerServer` it uses the `RDBrokerServer`
+  setting and fails if that is empty. Progress goes to the information stream instead of the console, and a
+  finished run returns one object (`BrokerServers`, `PreviousActiveBroker`, `ActiveBroker`, `RebootedBrokers`,
+  `Duration`). This completes [#1](https://github.com/xanderboy2001/SysAdminToolkit/issues/1): every public
+  command now runs without prompts when given its parameters.
 
 ### Added
 

@@ -52,7 +52,7 @@ function Get-ToolkitMenu {
             Items = @(
                 @{
                     Label  = 'Reboot Connection Brokers'
-                    Action = { Restart-RDSBroker -BrokerServer (Get-ToolkitConfig).RDBrokerServer }
+                    Action = { Show-RDSBrokerRestart }
                 }
                 @{
                     Label  = 'Allow or block new connections'

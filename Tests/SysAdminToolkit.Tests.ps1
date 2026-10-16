@@ -296,7 +296,9 @@ Describe 'Restart-RDSBroker' {
     BeforeEach {
         Mock -ModuleName SysAdminToolkit Get-ToolkitConfig { @{ RDTimeoutSecs = 600; RDMaxRetries = 15 } }
         Mock -ModuleName SysAdminToolkit Confirm-ConnectionBroker { 'B1.CONTOSO.TEST' }
-        Mock -ModuleName SysAdminToolkit Write-Host { }
+        Mock -ModuleName SysAdminToolkit Write-Host { throw 'Write-Host must not be called' }
+        Mock -ModuleName SysAdminToolkit Read-Host { throw 'Read-Host must not be called' }
+        Mock -ModuleName SysAdminToolkit Write-Information { }
         Mock -ModuleName SysAdminToolkit Restart-ServerAndWait { }
         Mock -ModuleName SysAdminToolkit Switch-ActiveBroker { }
         Mock -ModuleName SysAdminToolkit Get-ActiveBroker { 'B1.CONTOSO.TEST' }
@@ -1681,7 +1683,7 @@ Describe 'Resolve-ToolkitHost (F-16)' {
 Describe 'Errors keep the original exception (F-20)' {
     It 'Restart-RDSBroker keeps the Get-RDServer exception when listing brokers fails' {
         Mock -ModuleName SysAdminToolkit Get-ToolkitConfig { @{ RDTimeoutSecs = 600; RDMaxRetries = 15 } }
-        Mock -ModuleName SysAdminToolkit Write-Host { }
+        Mock -ModuleName SysAdminToolkit Write-Information { }
         Mock -ModuleName SysAdminToolkit Confirm-ConnectionBroker { 'B1.CONTOSO.TEST' }
         Mock -ModuleName SysAdminToolkit Restart-ServerAndWait { }
         Mock -ModuleName SysAdminToolkit Get-RDServer { throw [System.TimeoutException]::new('RPC timed out') }
@@ -2576,6 +2578,113 @@ Describe 'Show-RDSessionHostMode (menu wrapper)' {
             Show-RDSessionHostMode
 
             Should -Invoke Set-RDSessionHostMode -Times 0 -Exactly
+        }
+    }
+}
+
+Describe 'Restart-RDSBroker returns a summary (F-21, issue #1)' {
+    BeforeEach {
+        InModuleScope SysAdminToolkit {
+            Mock Read-Host { throw 'Read-Host must not be called' }
+            Mock Write-Host { throw 'Write-Host must not be called' }
+            Mock Write-Information { }
+            Mock Get-ToolkitConfig { @{ RDTimeoutSecs = 600; RDMaxRetries = 15; RDBrokerServer = 'broker1' } }
+            Mock Confirm-ConnectionBroker { 'B1.CONTOSO.TEST' }
+            Mock Get-RDServer {
+                [pscustomobject]@{ Server = 'B1.CONTOSO.TEST' }
+                [pscustomobject]@{ Server = 'B2.CONTOSO.TEST' }
+            }
+            Mock Get-ActiveBroker { 'B1.CONTOSO.TEST' }
+            Mock Restart-ServerAndWait { }
+            Mock Switch-ActiveBroker { }
+        }
+    }
+
+    It 'uses the configured broker and returns what was done' {
+        InModuleScope SysAdminToolkit {
+            $result = Restart-RDSBroker -Force
+
+            Should -Invoke Confirm-ConnectionBroker -Times 1 -Exactly -ParameterFilter {
+                $ConnectionBroker -eq 'broker1'
+            }
+            $result.PreviousActiveBroker | Should -Be 'B1.CONTOSO.TEST'
+            $result.ActiveBroker | Should -Be 'B2.CONTOSO.TEST'
+            $result.RebootedBrokers | Should -Be @('B2.CONTOSO.TEST', 'B1.CONTOSO.TEST')
+            $result.BrokerServers.Count | Should -Be 2
+            $result.Duration | Should -BeOfType [timespan]
+        }
+    }
+
+    It 'returns nothing with -WhatIf' {
+        InModuleScope SysAdminToolkit {
+            Restart-RDSBroker -WhatIf | Should -BeNullOrEmpty
+            Should -Invoke Restart-ServerAndWait -Times 0 -Exactly
+        }
+    }
+
+    It 'fails clearly when no broker is given or configured, without prompting' {
+        InModuleScope SysAdminToolkit {
+            Mock Get-ToolkitConfig { @{ RDTimeoutSecs = 600; RDMaxRetries = 15; RDBrokerServer = '' } }
+
+            $failure = { Restart-RDSBroker -Force } | Should -Throw -PassThru
+
+            $failure.FullyQualifiedErrorId | Should -BeLike 'SysAdminToolkit.ConnectionBrokerMissing*'
+            Should -Invoke Restart-ServerAndWait -Times 0 -Exactly
+        }
+    }
+
+    It 'writes progress to the information stream' {
+        InModuleScope SysAdminToolkit {
+            $null = Restart-RDSBroker -Force
+
+            Should -Invoke Write-Information -ParameterFilter { "$MessageData" -like '*active broker is now*' }
+        }
+    }
+
+    It 'has no PSAvoidUsingWriteHost suppression any more' {
+        $path = Join-Path $script:moduleRoot 'Public/Server/RemoteDesktop/Restart-RDSBroker.ps1'
+        Select-String -LiteralPath $path -Pattern 'PSAvoidUsingWriteHost' -SimpleMatch | Should -BeNullOrEmpty
+    }
+
+    It 'leaves no F-21 suppressions anywhere (issue #1 complete)' {
+        $root = Join-Path $PSScriptRoot '..'
+        $hits = Get-ChildItem -Path "$root/Public", "$root/Private" -Filter '*.ps1' -Recurse |
+            Select-String -Pattern 'F-21' -SimpleMatch
+        @($hits) | Should -BeNullOrEmpty
+    }
+}
+
+Describe 'Show-RDSBrokerRestart (menu wrapper)' {
+    BeforeEach {
+        InModuleScope SysAdminToolkit {
+            Mock Show-MenuHeader { }
+            Mock Write-Host { }
+            Mock Restart-RDSBroker { }
+        }
+    }
+
+    It 'uses the configured broker without prompting' {
+        InModuleScope SysAdminToolkit {
+            Mock Get-ToolkitConfig { @{ RDBrokerServer = 'broker1' } }
+            Mock Read-Host { throw 'Read-Host must not be called' }
+
+            Show-RDSBrokerRestart
+
+            Should -Invoke Restart-RDSBroker -Times 1 -Exactly -ParameterFilter { $BrokerServer -eq 'broker1' }
+        }
+    }
+
+    It 'asks for a broker when none is configured, and shows nothing when the restart was declined' {
+        InModuleScope SysAdminToolkit {
+            Mock Get-ToolkitConfig { @{ RDBrokerServer = '' } }
+            Mock Read-Host { 'typed-broker' }
+
+            Show-RDSBrokerRestart
+
+            Should -Invoke Restart-RDSBroker -Times 1 -Exactly -ParameterFilter {
+                $BrokerServer -eq 'typed-broker'
+            }
+            Should -Invoke Write-Host -Times 0 -Exactly
         }
     }
 }
