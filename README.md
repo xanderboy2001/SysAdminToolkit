@@ -68,7 +68,7 @@ To update, run `git pull` in the module folder from an elevated session, then `I
 SysAdmin Toolkit
 ├── Server
 │   ├── Active Directory   Reset Password · Unlock Account · Disable User · Start AD Sync · Get Disabled Users
-│   └── Remote Desktop     Reboot Connection Brokers · Toggle New Connections on Server · List connected users
+│   └── Remote Desktop     Reboot Connection Brokers · Allow or block new connections · List connected users
 ├── Client                 Unlock a file · Battery report · Printer web interface · Test computer reachability
 └── Config                 View Config · Edit Config · Reset Config to Defaults
 ```
@@ -92,7 +92,7 @@ Every command can also be run on its own. Use `Get-Help <command> -Full` for det
 | `Invoke-ADSync` | Runs an Entra Connect delta sync, waits for it, and returns the result | Yes: supports `-WhatIf` |
 | `Get-ADDisabledUser` | Lists disabled AD accounts, leaving out chosen OUs | No |
 | `Restart-RDSBroker` | Reboots all Connection Brokers one at a time, moving the active role between them | Yes: asks for confirmation |
-| `Set-RDSessionHostMode` | Switches new connections on or off (toggles) for chosen session hosts | Yes: supports `-WhatIf` |
+| `Set-RDSessionHostMode` | Allows or blocks new connections on session hosts (`-NewConnectionAllowed Yes/No`) | Yes: supports `-WhatIf` |
 | `Get-RDConnectedUser` | Returns the user sessions on session hosts, with full names from AD | No |
 | `Stop-FileLock` | Finds and stops the processes holding a file open, locally or on another computer | Yes: asks for each process |
 | `Get-BatteryReport` | Reports battery capacity for one or more computers | No |
@@ -104,8 +104,8 @@ The interactive commands prompt for anything you do not pass as a parameter. Mos
 instead of returning objects; changing that is tracked in
 [issue #1](https://github.com/xanderboy2001/SysAdminToolkit/issues/1). `Get-BatteryReport`,
 `Test-ComputerReachability`, `Get-ADDisabledUser`, `Get-RDConnectedUser`, `Invoke-ADAccountUnlock`,
-`Invoke-ADAccountDisable`, `Invoke-ADPasswordReset`, `Invoke-ADSync`, and `Stop-FileLock` return objects you can
-pipe and export.
+`Invoke-ADAccountDisable`, `Invoke-ADPasswordReset`, `Invoke-ADSync`, `Set-RDSessionHostMode`, and `Stop-FileLock`
+return objects you can pipe and export.
 
 Examples:
 
