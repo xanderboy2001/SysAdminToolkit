@@ -47,7 +47,7 @@ function Select-Server {
     }
 
     do {
-        $rawInput = Read-Host "Select one or more Remote Desktop Session Hosts to toggle"
+        $rawInput = Read-Host "Select one or more Remote Desktop Session Hosts (comma-separated numbers)"
         $tokens = @($rawInput -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
         $isValid = $tokens.Count -gt 0
         $indicies = foreach ($token in $tokens) {
@@ -60,6 +60,6 @@ function Select-Server {
         }
     } until ($isValid)
 
-    # De-duplicate so that '1,1' does not toggle the same host twice.
+    # De-duplicate so that '1,1' selects a host only once.
     return $indicies | Select-Object -Unique | ForEach-Object { $Servers[$_] }
 }
