@@ -91,7 +91,7 @@ Every command can also be run on its own. Use `Get-Help <command> -Full` for det
 | `Invoke-ADAccountDisable` | Disables AD accounts; accepts pipeline input | Yes: asks for confirmation |
 | `Invoke-ADSync` | Runs an Entra Connect delta sync, waits for it, and returns the result | Yes: supports `-WhatIf` |
 | `Get-ADDisabledUser` | Lists disabled AD accounts, leaving out chosen OUs | No |
-| `Restart-RDSBroker` | Reboots all Connection Brokers one at a time, moving the active role between them | Yes: asks for confirmation |
+| `Restart-RDSBroker` | Reboots all Connection Brokers one at a time, moving the active role; returns a summary | Yes: asks for confirmation |
 | `Set-RDSessionHostMode` | Allows or blocks new connections on session hosts (`-NewConnectionAllowed Yes/No`) | Yes: supports `-WhatIf` |
 | `Get-RDConnectedUser` | Returns the user sessions on session hosts, with full names from AD | No |
 | `Stop-FileLock` | Finds and stops the processes holding a file open, locally or on another computer | Yes: asks for each process |
@@ -100,12 +100,10 @@ Every command can also be run on its own. Use `Get-Help <command> -Full` for det
 | `Test-ComputerReachability` | Pings a list, a numbered name range, or an IP range in parallel | No |
 | `Show-ReachabilityMenu` | Opens the reachability menu on its own | No |
 
-The interactive commands prompt for anything you do not pass as a parameter. Most of them print their results
-instead of returning objects; changing that is tracked in
-[issue #1](https://github.com/xanderboy2001/SysAdminToolkit/issues/1). `Get-BatteryReport`,
-`Test-ComputerReachability`, `Get-ADDisabledUser`, `Get-RDConnectedUser`, `Invoke-ADAccountUnlock`,
-`Invoke-ADAccountDisable`, `Invoke-ADPasswordReset`, `Invoke-ADSync`, `Set-RDSessionHostMode`, and `Stop-FileLock`
-return objects you can pipe and export.
+Every command can run without prompts when you pass its parameters, so it can be used in scripts and scheduled
+tasks. Commands that change something ask for confirmation unless you add `-Force` (or `-Confirm:$false`), and
+support `-WhatIf`. Except for `Start-ToolkitMenu`, `Show-ReachabilityMenu`, and `Open-PrinterWebInterface`, they
+return objects you can pipe and export. The step-by-step versions with prompts are in the menu.
 
 Examples:
 
